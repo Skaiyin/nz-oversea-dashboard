@@ -1,0 +1,409 @@
+---
+title: "demo"
+output: html_document
+date: "2025-03-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Read Data
+
+```{r}
+# library(tidyverse)
+# library(lubridate)
+# library(ggplot2)
+# library(plotly)
+# library(tidyr)
+# library(countrycode)
+# # 自定义列名清洗函数（仅做合法化处理，保留原始语义）
+# clean_column_names <- function(df) {
+#   colnames(df) <- gsub("\\.+", "_", colnames(df))  # 将所有连续的点号替换为下划线
+#   colnames(df) <- gsub("[[:space:]]+", "_", colnames(df))  # 空格转下划线
+#   colnames(df) <- gsub("[^[:alnum:]_]", "", colnames(df))  # 移除非字母数字字符
+#   colnames(df) <- gsub("_+", "_", colnames(df))  # 合并连续下划线
+#   colnames(df) <- tolower(colnames(df))  # 统一为小写
+#   colnames(df) <- gsub("_$", "", colnames(df))
+#   return(df)
+# }
+# data_preprocess <- function(df) {
+#   df <- clean_column_names(df)
+#   return(df)
+# }
+# 
+# imports_raw <- read_csv("~/Downloads/2021_Imports_HS10_by_Country.csv") %>% 
+#   clean_column_names() %>%
+#   mutate(month = as.Date(paste0(month, "01"), format="%Y%m%d")) %>%
+#   mutate(continent = countrycode(country, origin = "country.name", destination = "continent",
+#                                  custom_match = c( "Virgin Islands, United States" = "Americas",
+#                                    "Cocos (Keeling) Islands" = "Oceania", 
+#                                    "French Southern Territories" = "Oceania",  
+#                                    "United States Minor Outlying Islands" = "Americas",
+#                                    "South Georgia and the South Sandwich Islands" = "Oceania",
+#                                    "British Indian Ocean Territory" = "Asia"
+#                                  ))) %>%
+#   mutate(iso3 = countrycode(country, origin = "country.name", destination = "iso3c",
+#                             custom_match = c("Virgin Islands, United States" = "USA")
+#                             )) %>%
+#   mutate(harmonised_system_code = str_pad(str_trim(format(harmonised_system_code,scientific=FALSE)), 
+#                                           width = 10, side = "left", pad = "0"))%>%
+#   mutate(hs2 = substr(harmonised_system_code, 1, 2)) %>%
+#   mutate(hs4 = substr(harmonised_system_code, 1, 4)) %>%
+#   mutate(hs5 = substr(harmonised_system_code, 1, 5))
+# 
+# imports_raw <- imports_raw %>%
+#    mutate(hs2_group = case_when(
+#     between(as.numeric(hs2), 1, 5) ~ 1,  # Live animals; animal products (01-05)
+#     between(as.numeric(hs2), 6, 14) ~ 2,  # Vegetable products (06-14)
+#     between(as.numeric(hs2), 15, 15) ~ 3,  # Animal or vegetable fats and oils (15)
+#     between(as.numeric(hs2), 16, 16) ~ 4,  # Prepared foodstuffs; beverages (16)
+#     between(as.numeric(hs2), 25, 27) ~ 5,  # Salt, sulphur, earths and stone; Ores (25-27)
+#     between(as.numeric(hs2), 28, 38) ~ 6,  # Products of the chemical or allied industries (28-38)
+#     between(as.numeric(hs2), 39, 40) ~ 7,  # Plastics and rubber (39-40)
+#     between(as.numeric(hs2), 41, 43) ~ 8,  # Raw hides and skins, leather (41-43)
+#     between(as.numeric(hs2), 44, 46) ~ 9,  # Wood and articles of wood (44-46)
+#     between(as.numeric(hs2), 47, 49) ~ 10, # Pulp of wood or paperboard (47-49)
+#     between(as.numeric(hs2), 50, 63) ~ 11, # Textiles and textile articles (50-63)
+#     between(as.numeric(hs2), 64, 67) ~ 12, # Footwear, headgear, umbrellas (64-67)
+#     between(as.numeric(hs2), 68, 70) ~ 13, # Stone, plaster, cement, asbestos (68-70)
+#     between(as.numeric(hs2), 71, 71) ~ 14,  # Natural or cultured pearls (71)
+#     between(as.numeric(hs2), 72, 83) ~ 15, # Base metals and articles thereof (72-83)
+#     between(as.numeric(hs2), 84, 85) ~ 16, # Machinery and electrical equipment (84-85)
+#     between(as.numeric(hs2), 86, 89) ~ 17, # Vehicles, aircraft, vessels (86-89)
+#     between(as.numeric(hs2), 90, 92) ~ 18, # Optical, photographic instruments (90-92)
+#     between(as.numeric(hs2), 93, 93) ~ 19,  # Arms and ammunition (93)
+#     between(as.numeric(hs2), 94, 96) ~ 20, # Furniture, bedding, lamps (94-96)
+#     between(as.numeric(hs2), 97, 98) ~ 21, # Works of art, collectors' pieces (97-98)
+#     TRUE ~ 0  # Other category for any values that don't match
+#   )) %>%
+#   mutate(hs2_group = as.factor(hs2_group))
+imports_raw <- readRDS("2021_imports_raw.rds")
+```
+
+## month
+
+```{r}
+monthly_imports_agg <- function(data, ...) {
+  data %>%
+    group_by(...) %>%
+    filter(imports_qty != 0) %>%
+    summarise(
+      Total_Imports_vfd = sum(imports_nzd_vfd, na.rm = TRUE),
+      Total_Imports_cif = sum(imports_nzd_cif, na.rm = TRUE),
+      Total_Imports_qty = sum(imports_qty, na.rm = TRUE)
+    ) %>%
+    mutate(
+      Transport_Insurance_Cost = Total_Imports_cif - Total_Imports_vfd,
+      unit_vfd = Total_Imports_vfd / Total_Imports_qty,
+      unit_cif = Total_Imports_cif / Total_Imports_qty,
+      unit_transport_insurance_cost = Transport_Insurance_Cost / Total_Imports_qty
+    )
+}
+overview_plot <- function(data, ...){
+  agg_data <- data %>%
+    monthly_imports_agg(...)
+
+  p1 <- ggplot(agg_data) +
+    # plot VFD (in millions)
+    geom_line(aes(x = month, y = Total_Imports_vfd / 1e6, color = "VFD"),  size = 1) +
+    # Draw CIF (in millions)
+    geom_line(aes(x = month, y = Total_Imports_cif / 1e6, color = "CIF"), size = 1) +
+    labs(title = "Monthly Imports ($NZD vfd, $NZD cif) and Transport/Insurance Costs", 
+         x = "Month", 
+         y = "Total Imports ($NZD, in millions)") +
+    theme_minimal() +
+    scale_color_manual(values = c("blue", "red", "green"))
+
+  p2 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Imports_qty/1e7, color = "Total Imports Qty"), size = 1,) + 
+    labs(title = "Monthly Imports Total Imports Qty", 
+         x = "Month", 
+         y = "Total Imports Qty (in ten millions)") +
+    theme_minimal()
+  
+  # plot unit_vfd
+  p3 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = unit_vfd, color = "unit_vfd"), size = 1,) + 
+    geom_line(aes(x = month, y = unit_cif, color = "unit_cif"), size = 1,) +
+    geom_line(aes(x = month, y = unit_transport_insurance_cost, color = "unit_transport_insurance_cost"), size = 1,) +
+   labs(title = "Monthly Imports unit_vfd, unit_cif, unit_transport_insurance_cost", 
+         x = "Month", 
+         y = "unit") +
+    theme_minimal() + 
+    scale_color_manual(values = c("blue", "red", "green"))
+  print(p1)
+  print(p2)
+  print(p3)
+  
+}
+
+imports_raw %>% overview_plot(month)
+```
+## global geographical map
+
+```{r}
+agg_data <- imports_raw %>%
+    group_by(iso3) %>%
+    filter(imports_qty != 0) %>%
+    summarise(
+      Total_Imports_vfd = sum(imports_nzd_vfd, na.rm = TRUE),
+      Total_Imports_cif = sum(imports_nzd_cif, na.rm = TRUE),
+      Total_Imports_qty = sum(imports_qty, na.rm = TRUE)
+    ) %>%
+    mutate(
+      Transport_Insurance_Cost = Total_Imports_cif - Total_Imports_vfd,
+    )
+
+world_map <- map_data("world")
+world_map$iso3 <- countrycode(world_map$region, origin = "country.name", 
+                              destination = "iso3c",
+                              custom_match = c(
+                                "Barbuda" = "ATG",           # Barbuda -> Antigua and Barbuda
+                                "Canary Islands" = "ESP",    # Canary Islands -> Spain
+                                "Kosovo" = "SRB",            # Kosovo -> Serbia
+                                "Siachen Glacier" = "PAK",   # Siachen Glacier -> Pakistan
+                                "Chagos Archipelago" = "SHN",# Chagos Archipelago -> Saint Helena
+                                "Virgin Islands" = "VGB",    # Virgin Islands -> British Virgin Islands
+                                "Ascension Island" = "ASC"   # Ascension Island -> Ascension
+                            ))
+# combine map data
+world_data <- world_map %>%
+  right_join(agg_data, by = c("iso3" = "iso3"))
+# na填充为0
+world_data[is.na(world_data)] <- 0
+# 绘制地图热力图
+ggplot(world_data) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = Total_Imports_vfd/1e9)) +
+  scale_fill_viridis_c() +
+  labs(title = "Total Imports VFD by Country",
+       fill = "Total Imports VFD ($NZD billion)") +
+  theme_void()
+```
+
+
+### group_by continent
+
+```{r}
+plotv2 <- function(data,show_group,...,filter_conditions = list()){
+  
+  agg_data <- data %>%
+    monthly_imports_agg(...)
+  print(length(filter_conditions))
+  if (length(filter_conditions) > 0) {
+    for (filter_cond in filter_conditions) {
+      agg_data <- agg_data %>% filter(!!parse_expr(filter_cond))  # Apply each filter condition
+    }
+  }
+  p1 <- ggplot(agg_data) +
+    # Plot VFD (in millions)
+    geom_line(aes(x = month, y = Total_Imports_vfd / 1e6, color = {{show_group}}),  size = 1) +
+    labs(title = paste("Monthly Imports ($NZD vfd) group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Imports VFD ($NZD, in millions)") +
+    theme_minimal()
+
+  p2 <- ggplot(agg_data) +
+    # Plot VFD (in millions)
+    geom_line(aes(x = month, y = Total_Imports_cif / 1e6, color = {{show_group}}),  size = 1) +
+    labs(title = paste("Monthly Imports ($NZD cif) group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Imports CIF ($NZD, in millions)") +
+    theme_minimal()
+
+  p3 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Imports_qty/1e7, color = {{show_group}}), size = 1,) +
+    labs(title = paste("Monthly Imports Total Imports Qty group by", substitute(show_group)),
+         x = "Month",
+         y = "Total Imports Qty (in ten millions)") +
+    theme_minimal()
+  p4 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Transport_Insurance_Cost/1e7, color = {{show_group}}), size = 1,) +
+    labs(title = paste("Monthly Imports Total Transport Insurance Cost group by", substitute(show_group)),
+         x = "Month",
+         y = "Total Imports Transport Insurance Cost (in ten millions)") +
+    theme_minimal()
+  
+  print(p1)
+  print(p2)
+  print(p3)
+  print(p4)
+  agg_data
+}
+
+pie_plot <- function(agg_data,show_group){
+  agg_data_pie <- agg_data %>%
+    group_by({{show_group}}) %>%
+    summarise(Total_vfd = sum(Total_Imports_vfd, na.rm = TRUE),
+              Total_cif = sum(Total_Imports_cif, na.rm = TRUE),
+              Total_qty = sum(Total_Imports_qty, na.rm = TRUE),
+              Total_insurance = sum(Transport_Insurance_Cost, na.rm = TRUE)) %>%
+    mutate(Percentage_vfd = Total_vfd / sum(Total_vfd) * 100,
+          Percentage_cif = Total_cif / sum(Total_cif) * 100,
+          Percentage_qty = Total_qty / sum(Total_qty) * 100,
+          Percentage_insurance = Total_insurance / sum(Total_insurance) * 100)
+  # plot pie
+  p1 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_vfd, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    labs(title = paste("Percentage of Total Imports VFD group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  p2 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_cif, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    labs(title = paste("Percentage of Total Imports CIF group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  p3 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_qty, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    labs(title = paste("Percentage of Total Imports Qty group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  
+  p4 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_insurance, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    labs(title = paste("Percentage of Total Imports Insurance group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  
+  print(p1)
+  print(p2)
+  print(p3)
+  print(p4)
+}
+unitgroup <- imports_raw  %>% plotv2(show_group=continent,month,continent)
+unitgroup %>% pie_plot(continent)
+```
+
+### group_by hs2_group
+
+```{r}
+imports_raw %>% plotv2(show_group=hs2_group, month,hs2_group)
+```
+
+The overall trend is consistent, with an increase in costs as the sample size grows. For some groups, there is a clear seasonality, such as Group 5 (Salt, sulphur, earths and stone; Ores, slag; Mineral fuels, mineral oils). This is because the prices of these products are influenced by seasonal factors, such as oil, coal, and so on.
+
+The amount for Group 16 (Machinery and electrical equipment (84-85)) and Group 17 (Vehicles, aircraft, vessels (86-89)) is much higher than other groups, but the quantity is not high. This indicates that these products are expensive, but in low quantities. These products are likely high-end items, such as airplanes, ships, and machinery, and their insurance costs are also high, which aligns with our expectations.
+
+
+### group_by hs2
+
+```{r}
+imports_raw %>% plotv2(show_group=hs2, month,hs2)
+```
+
+The overall trend is consistent, there are no obvious anomalies.
+
+### group_by hs4 under hs2
+
+```{r}
+library(rlang)
+imports_raw %>% plotv2(show_group=hs4, month,hs2,hs4,
+                       filter_conditions = c('hs2 == "02"'))
+```
+0203（Meat of swine, fresh, chilled or frozen）是02（Meat and edible meat offal）中的 是主要的占比
+
+```{r}
+imports_raw %>% plotv2(show_group=hs4, month,hs2,hs4,
+                       filter_conditions = c('hs2 == "03"'))
+```
+
+The import of 0304 (Fish fillets and other fish meat (whether or not minced), fresh, chilled or frozen) increases in August because it marks the end of winter, leading to a rise in demand for fish meat.
+The import of 0303 (Fish, frozen, excluding fish fillets and other fish meat of heading 03.04) is higher in January because it is summer, a time of increased demand due to holidays, post-holiday restocking, and the tourism season.
+
+along with 0306（Crustaceans, whether in shell or not, live, fresh, chilled, frozen, dried,salted or in brine; smoked crustaceans, whether in shell or not, whether or not cooked before or during the smoking process; crustaceans, in shell,cooked by steaming or by boiling in water, whether or not chilled, frozen, dried, salted or in brine）increase，This is because these categories are closely related, all involving seafood, and there is typically a surge in demand for fish and crustaceans as winter ends and the consumption of seafood increases with the change of seasons.
+
+```{r}
+imports_raw %>% plotv2(show_group=hs4, month,hs2,hs4,
+                       filter_conditions = c('hs2 == "04"'))
+```
+0402 Why is the cost so high in May?
+<!-- 0407 有明显的周期性 -->
+
+
+# under 0402
+```{r}
+imports_raw %>% plotv2(show_group=hs5, month,hs4,hs5,filter_conditions = c('hs4 == "0402"'))
+```
+
+Why has the insurance cost for 04022 (In powder, granules or other solid forms, of a fat content, by weight, exceeding 1.5%) 
+sharply increased, coinciding with the highest insurance amount in May?
+
+## under 04022
+
+```{r}
+imports_raw %>% plotv2(show_group=harmonised_system_code, month,hs5,harmonised_system_code,
+                                          filter_conditions = c('hs5 == "04022"'))
+```
+
+The insurance fee for 0402210019 (Dairy produce; whole milk powder, concentrated, not containing added sugar or other sweetening matter, of a fat content exceeding 1.5% (by weight), n.e.c. in item no. 0402.21) has increased.
+
+## the geometric 0402210019
+
+```{r}
+## propotion
+data_group_by_country <- imports_raw %>% plotv2(show_group=country, month,harmonised_system_code,country,
+                                          filter_conditions = c('harmonised_system_code == "0402210019"'))
+data_group_by_country %>% pie_plot(country)
+
+propotion_with_time <- function(agg_data,show_group){
+  agg_data_pie <- agg_data %>%
+    group_by(month,{{show_group}}) %>%
+    summarise(Total_vfd = sum(Total_Imports_vfd, na.rm = TRUE),
+              Total_cif = sum(Total_Imports_cif, na.rm = TRUE),
+              Total_qty = sum(Total_Imports_qty, na.rm = TRUE),
+              Total_insurance = sum(Transport_Insurance_Cost, na.rm = TRUE)) %>%
+    mutate(Percentage_vfd = Total_vfd / sum(Total_vfd) * 100,
+          Percentage_cif = Total_cif / sum(Total_cif) * 100,
+          Percentage_qty = Total_qty / sum(Total_qty) * 100,
+          Percentage_insurance = Total_insurance / sum(Total_insurance) * 100)
+  # pie
+  p1 <- ggplot(agg_data_pie, aes(x = month, y = Percentage_vfd, fill = {{show_group}})) +
+    geom_area() +
+    labs(title = paste("Percentage of Total Imports VFD group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  p2 <- ggplot(agg_data_pie, aes(x = month, y = Percentage_cif, fill = {{show_group}})) +
+    geom_area() +
+    labs(title = paste("Percentage of Total Imports CIF group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  p3 <- ggplot(agg_data_pie, aes(x = month, y = Percentage_qty, fill = {{show_group}})) +
+    geom_area() +
+    labs(title = paste("Percentage of Total Imports Qty group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  p4 <- ggplot(agg_data_pie, aes(x = month, y = Percentage_insurance, fill = {{show_group}})) +
+    geom_area() +
+    labs(title = paste("Percentage of Total Imports Insurance group by", substitute(show_group)),
+         x = NULL,
+         y = NULL) +
+    theme_void() +
+    theme(legend.position = "bottom")
+  
+  print(p1)
+  print(p2)
+  print(p3)
+  print(p4)
+}
+data_group_by_country %>% propotion_with_time(country)
+```
+
+The insurance cost might be high at the beginning when importing from Germany.
