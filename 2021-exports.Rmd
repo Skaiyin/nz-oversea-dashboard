@@ -1,0 +1,481 @@
+---
+title: "demo-exports"
+output: html_document
+date: "2025-03-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## read data
+
+```{r cars}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(plotly)
+library(tidyr)
+library(countrycode)
+exports_raw <- readRDS("2021_exports_raw.rds")
+```
+
+## monthly overview exports
+
+```{r}
+monthly_exports_agg <- function(data, ...) {
+  data %>%
+    group_by(...) %>%
+    filter((exports_nzd_fob != 0) | (reexports_nzd_fob != 0)) %>%
+    summarise(
+      Total_Only_Exports_nzd_fob = sum(exports_nzd_fob, na.rm = T),
+      Total_Only_Exports_qty = sum(exports_qty, na.rm = T),           
+      Total_Reexports_nzd_fob = sum(reexports_nzd_fob, na.rm = T),
+      Total_Reexports_qty = sum(reexports_qty, na.rm = T),        
+      Total_Exports_nzd_fob = sum(total_exports_nzd_fob, na.rm = T),  
+      Total_Exports_qty = sum(total_exports_qty, na.rm = T)        
+    ) %>%
+    mutate(
+      unit_fob = Total_Exports_nzd_fob / Total_Exports_qty,  
+      unit_reexports_fob = Total_Reexports_nzd_fob / Total_Reexports_qty, 
+      unit_only_exports_fob = Total_Only_Exports_nzd_fob / Total_Only_Exports_qty, 
+      export_qty_proportion = Total_Only_Exports_nzd_fob / Total_Exports_nzd_fob, 
+    )
+}
+overview_plot <- function(data, ...){
+  agg_data <- data %>%
+    monthly_exports_agg(...)
+
+  p1 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Only_Exports_nzd_fob / 1e6, color = "Only_Exports"),  size = 1) +
+    geom_line(aes(x = month, y = Total_Reexports_nzd_fob / 1e6, color = "Reexports"), size = 1) +
+    geom_line(aes(x = month, y = Total_Exports_nzd_fob / 1e6, color = "Exports"), size = 1) +
+    labs(title = "Monthly Imports fob($NZD)", 
+         x = "Month", 
+         y = "Total Imports ($NZD, in millions)") +
+    theme_minimal() +
+    scale_color_manual(values = c("blue", "red", "green"))
+
+  p2 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Only_Exports_qty/1e7, color = "Total Only Exports Qty"), size = 1,) + 
+    geom_line(aes(x = month, y = Total_Reexports_qty/1e7, color = "Total Reexports Qty"), size = 1,) +
+    geom_line(aes(x = month, y = Total_Exports_qty/1e7, color = "Total Exports Qty"), size = 1,) +
+    labs(title = "Monthly Imports Total Imports Qty", 
+         x = "Month", 
+         y = "Total Imports Qty (in ten millions)") +
+    theme_minimal()
+  
+  p3 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = unit_fob, color = "unit_fob"), size = 1,) + 
+    geom_line(aes(x = month, y = unit_reexports_fob, color = "unit_reexports_fob"), size = 1,) +
+    geom_line(aes(x = month, y = unit_only_exports_fob, color = "unit_only_exports_fob"), size = 1,) +
+   labs(title = "Monthly Imports unit_fob", 
+         x = "Month", 
+         y = "unit") +
+    theme_minimal() + 
+    scale_color_manual(values = c("blue", "red", "green"))
+  
+  print(p1)
+  print(p2)
+  print(p3)
+}
+
+exports_raw %>% overview_plot(month)
+```
+Most of them are exported directly, and a small part is re-exported, but the unit price of re-export is relatively high.
+
+## global geographical map
+
+```{r}
+agg_data <- exports_raw %>%
+    group_by(iso3) %>%
+    filter(exports_nzd_fob != 0 | reexports_nzd_fob !=0) %>%
+    summarise(
+      Total_Only_Exports_nzd_fob = sum(exports_nzd_fob, na.rm = T),
+      Total_Only_Exports_qty = sum(exports_qty, na.rm = T),           
+      Total_Reexports_nzd_fob = sum(reexports_nzd_fob, na.rm = T), 
+      Total_Reexports_qty = sum(reexports_qty, na.rm = T),       
+      Total_Exports_nzd_fob = sum(total_exports_nzd_fob, na.rm = T), 
+      Total_Exports_qty = sum(total_exports_qty, na.rm = T)  
+    )
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Only_Exports_nzd_fob,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Only Exports fob ($NZD)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Only_Exports_qty,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Only Exports qty")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Reexports_nzd_fob,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Reexport fob ($NZD)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Reexports_qty,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Reexport qty")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Exports_nzd_fob,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Exports fob ($NZD)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Exports_qty,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Exports qty")
+```
+
+For re-export, it is mainly Australia and USA, and for direct export, it is mainly China, Australia and USA.
+
+## Export Flow in continent
+
+```{r}
+exports_raw %>%
+  group_by(hs2_group, continent) %>%
+  summarise(value = sum(total_exports_nzd_fob, na.rm = T)) %>%
+  plot_ly(
+    type = "sankey",
+    orientation = "h",
+    node = list(
+      label = c(unique(exports_raw$hs2_group), unique(exports_raw$continent))
+    ),
+    link = list(
+      source = as.numeric(factor(.$hs2_group)) - 1,
+      target = as.numeric(factor(.$continent)) - 1 + length(unique(exports_raw$hs2_group)),
+      value = .$value
+    )
+  ) %>%
+  layout(title = "Export Flow: HS Chapters to Continent")
+```
+
+Although China is the largest exporter as a single country, at the continental level, Europe accounts for the largest export share, while Asia has a relatively small market share. Surprisingly, ships bunkering and passengers effects also account for a large proportion of New Zealand's exports. Since New Zealand is an island country with high international shipping demand, ship bunker exports are part of its market to a certain extent. In addition, as a popular tourist destination, the recovery of New Zealand's tourism industry has also driven the export of passenger-related goods (such as duty-free goods, luggage, etc.), which makes the proportion of these two items less surprising.
+
+## group_by_continent
+
+```{r}
+library(gridExtra)
+library(grid)
+library(cowplot)
+
+plotv2 <- function(data,show_group,...,filter_conditions = list()){
+  
+  agg_data <- data %>%
+    monthly_exports_agg(...)
+  
+  if (length(filter_conditions) > 0) {
+    for (filter_cond in filter_conditions) {
+      agg_data <- agg_data %>% filter(!!parse_expr(filter_cond))  # Apply each filter condition
+    }
+  }
+  
+  p1 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Only_Exports_nzd_fob / 1e6, color = {{show_group}}),  size = 1) +
+    labs(title = paste("Monthly Only Exports ($NZD fob) group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Exports fob ($NZD, in millions)") +
+    theme_minimal()
+  
+  p2 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Only_Exports_qty/1e7, color = {{show_group}}), size = 1,) + 
+    labs(title = paste("Monthly Only Exports Qty group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Exports Qty (in ten millions)") +
+    theme_minimal()
+  
+  p3 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = unit_fob, color = {{show_group}}), size = 1,) + 
+    labs(title = paste("Monthly unit_fob group by",substitute(show_group)),
+         x = "Month",
+         y = "unit") +
+    theme_minimal()
+  
+  p4 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = export_qty_proportion, color = {{show_group}}), size = 1,) + 
+    labs(title = paste("Monthly Exports Proportion group by",substitute(show_group)),
+         x = "Month",
+         y = "Export Quantity Proportion") +
+    theme_minimal()
+   
+  p5 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Reexports_nzd_fob / 1e6, color = {{show_group}}),  size = 1) +
+    labs(title = paste("Monthly Reexports ($NZD fob) group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Reexports fob ($NZD, in millions)") +
+    theme_minimal()
+  
+  p6 <- ggplot(agg_data) +
+    geom_line(aes(x = month, y = Total_Reexports_qty/1e7, color = {{show_group}}), size = 1,) + 
+    labs(title = paste("Monthly Reexports Qty group by",substitute(show_group)),
+         x = "Month",
+         y = "Total Reexports Qty (in ten millions)") +
+    theme_minimal()
+  
+  print(p1)
+  print(p2)
+  print(p3)
+  print(p4)
+  print(p5)
+  print(p6)
+  agg_data
+}
+
+pie_plot <- function(agg_data,show_group){
+  agg_data_pie <- agg_data %>%
+    group_by({{show_group}}) %>%
+    summarise(Total_only_exports_fob = sum(Total_Only_Exports_nzd_fob, na.rm = T),
+              Total_only_exports_qty = sum(Total_Only_Exports_qty, na.rm = T),
+              Total_reexports_nzd_fob = sum(Total_Reexports_nzd_fob, na.rm = T),
+              Total_reexports_qty = sum(Total_Reexports_qty, na.rm = T)) %>%
+    mutate(Percentage_only_exports_fob = Total_only_exports_fob / sum(Total_only_exports_fob) * 100,
+          Percentage_only_exports_qty = Total_only_exports_qty / sum(Total_only_exports_qty) * 100,
+          Percentage_reexports_fob = Total_reexports_nzd_fob / sum(Total_reexports_nzd_fob) * 100,
+          Percentage_reexports_qty = Total_reexports_qty / sum(Total_reexports_qty) * 100)
+  
+  # 画饼图
+  p1 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_only_exports_fob, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    # labs(title = paste("Percentage of Total Only Exports fob group by", substitute(show_group)),
+    #      x = NULL,
+    #      y = NULL) +
+    theme_void() +
+    theme(legend.position = "none")
+  
+  p2 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_only_exports_qty, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    # labs(title = paste("Percentage of Total Only Exports qty group by", substitute(show_group)),
+    #      x = NULL,
+    #      y = NULL) +
+    theme_void() +
+    theme(legend.position = "none")
+  
+  p3 <- ggplot(agg_data_pie, aes(x = "", y = Percentage_reexports_fob, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    # labs(title = paste("Percentage of Total Reexports fob group by", substitute(show_group)),
+    #      x = NULL,
+    #      y = NULL) +
+    theme_void() +
+    theme(legend.position = "none")
+  
+  p4 <- ggplot(agg_data_pie, aes(x = "", y = Total_reexports_qty, fill = {{show_group}})) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    # labs(title = paste("Percentage of Total Reexports qty group by", substitute(show_group)),
+    #      x = NULL,
+    #      y = NULL) +
+    theme_void() +
+    theme(legend.position = "none")
+  
+  legend <- get_legend(
+    ggplot(agg_data_pie, aes(x = "", y = Percentage_only_exports_fob, fill = {{show_group}})) +
+      geom_bar(width = 1, stat = "identity") +
+      coord_polar("y", start = 0) +
+      theme_void()
+  )
+
+  # print(p1)
+  # print(p2)
+  print(plot_grid(p1, p2, legend, ncol = 3, labels = c("Only Exports fob", "Only Exports qty"), 
+                  rel_widths = c(1, 1, 0.4)))
+  print(plot_grid(p3, p4, legend, ncol = 3, labels = c("ReExports fob", "ReExports qty"), 
+                  rel_widths = c(1, 1, 0.4)))
+  # print(p3)
+  # print(p4)
+}
+unitgroup <- exports_raw  %>% plotv2(show_group=continent,month,continent)
+print(unique(unitgroup$show_group))
+unitgroup %>% pie_plot(continent)
+
+```
+
+The FOB curve for Antarctica seems strange, with significant fluctuations, possibly due to its unique geographic location.
+
+```{r}
+library(treemapify)
+tree_map <- exports_raw %>%
+  group_by(hs2_group, hs4) %>%
+  summarise(total = sum(total_exports_nzd_fob)) %>%
+  ggplot(aes(area = total, fill = hs2_group, 
+           label = hs4, subgroup = hs2_group)) +
+  geom_treemap() +
+  geom_treemap_subgroup_border() +
+  geom_treemap_text(colour = "white") +
+  scale_fill_viridis_d()
+print(tree_map)
+# ggplotly(tree_map,tooltip = c("label", "area"))
+```
+
+
+## Continent-Product Bicluster Heatmap
+
+```{r}
+library(ComplexHeatmap)
+matrix_data <- exports_raw %>%
+  group_by(continent, hs2_group) %>%
+  summarise(total = log10(sum(total_exports_nzd_fob))) %>%
+  spread(hs2_group, total, fill=0) %>%
+  column_to_rownames("continent")
+
+Heatmap(matrix_data, 
+        name = "log10(Export Value)",
+        col = viridisLite::viridis(100),
+        row_km = 4,  # 国家聚类
+        column_km = 4)  # 产品聚类
+```
+
+Ships' Bunkering、Ships' Stores 和 Passengers' Effects 这三类出口的比例相似，符合预期，均与旅游相关。相比之下，Antarctica 和目的不明的出口量较少。
+
+## three demension analysis(total_value,avg_price,product_diversity)
+
+```{r}
+country_stats <- exports_raw %>%
+  group_by(continent) %>%
+  summarise(
+    total_value = sum(total_exports_nzd_fob),
+    avg_price = mean(total_exports_nzd_fob/total_exports_qty, na.rm=T),
+    product_diversity = n_distinct(harmonised_system_code)
+  ) 
+
+ggplot(country_stats, aes(x=log10(total_value), y=log10(avg_price),
+                         size=product_diversity, color=continent)) +
+  geom_point(alpha=0.7) +
+  ggrepel::geom_text_repel(aes(label=continent), size=3, max.overlaps = 15) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Market Dynamics Analysis",
+       subtitle = "Size=Product Diversity, Color=Continent")
+```
+
+## group_by hs2_group
+
+```{r}
+library(ggridges)
+exports_raw %>%
+  mutate(unit_price = total_exports_nzd_fob/total_exports_qty) %>%
+  filter(unit_price > 0, unit_price < quantile(unit_price, 0.99, na.rm=T)) %>%
+  ggplot(aes(x = log10(unit_price), y = factor(hs2_group), fill = ..x..)) +
+  geom_density_ridges_gradient(scale = 3) +
+  scale_fill_viridis_c() +
+  labs(title = "Price Distribution by Product Category",
+       x = "Log10(Unit Price)",
+       y = "HS2 Category")
+```
+
+
+```{r}
+exports_raw %>% plotv2(show_group=hs2_group,month,hs2_group)
+```
+
+```{r}
+# # 洛伦兹曲线与基尼系数
+# country_share <- exports_raw %>%
+#   group_by(country) %>%
+#   summarise(total = sum(total_exports_nzd_fob)) %>%
+#   arrange(desc(total)) %>%
+#   mutate(
+#     cum_share = cumsum(total)/sum(total),
+#     rank = row_number()
+#   )
+# 
+# n_countries <- nrow(country_share)
+# 
+# gini <- country_share %>%
+#   summarise(gini = 1 - 2 * sum(cum_share)/n_countries)
+# 
+# 
+# ggplot(country_share) +
+#   geom_line(aes(x = rank/n_countries, y = cum_share), color="steelblue") +
+#   geom_abline(slope = 1, linetype="dashed") +
+#   annotate("text", x=0.7, y=0.3, label=paste0("Gini Index: ", round(gini$gini,3))) +
+#   labs(title = "Export Market Concentration (Lorenz Curve)",
+#        x = "Cumulative Percentage of Countries",
+#        y = "Cumulative Share of Exports")
+```
+
+
+## diversity analysis 
+
+```{r}
+# 多样性分析可视化
+library(vegan)
+library(rnaturalearth)
+# 2. 产品多样性分析（按国家）
+product_diversity <- exports_raw %>%
+  group_by(iso3, hs2_group) %>%
+  summarise(total_value = sum(total_exports_nzd_fob)) %>%
+  group_by(iso3) %>%
+  mutate(
+    shannon = diversity(total_value, index = "shannon"),
+    # 计算Simpson指数并计算市场集中度（1 - Simpson指数）
+    simpson_index = diversity(total_value, index = "simpson"),
+    market_concentration = 1 - simpson_index
+  )
+
+# 产品多样性地图
+world_shannon <- ne_countries(returnclass = "sf") %>%
+  left_join(product_diversity, by = c("iso_a3" = "iso3"))
+
+plot_geo(product_diversity) %>%
+  add_trace(
+    z = ~shannon,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Shannon Index")
+
+# 3. 多样性-集中度关系分析
+ggplot(product_diversity, aes(x = shannon, y = market_concentration)) +
+  geom_point(aes(size = total_value), alpha = 0.7) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  scale_size_continuous(name = "total export fob（log）", 
+                       trans = "log10",
+                       breaks = c(1e6, 1e7, 1e8)) +
+  scale_color_brewer(palette = "Set2") +
+  labs(title = "Relationship between diversity and market concentration",
+       x = "product diversity indexs", 
+       y = "market concentration") +
+  theme_bw()
+
+# 4. 多样性时间趋势分析
+diversity_trend <- exports_raw %>%
+  mutate(quarter = quarter(month)) %>%
+  group_by(quarter, country) %>%
+  summarise(total_value = sum(total_exports_nzd_fob)) %>%
+  group_by(quarter) %>%
+  mutate(
+    shannon = diversity(total_value, index = "shannon")
+  ) %>%
+  distinct(quarter, shannon)
+
+ggplot(diversity_trend, aes(x = quarter, y = shannon)) +
+  geom_line(color = "#2c7fb8", size = 1.5) +
+  geom_point(color = "#2c7fb8", size = 3) +
+  labs(title = "Market Diversity Quarterly Trends",
+       x = "quarter", y = "Shannon Diversity Index") +
+  scale_x_continuous(breaks = 1:4, labels = paste0("Q", 1:4)) +
+  theme_minimal()
+```

@@ -1,5 +1,5 @@
 ---
-title: "demo"
+title: "2021-imports"
 output: html_document
 date: "2025-03-06"
 ---
@@ -140,6 +140,7 @@ overview_plot <- function(data, ...){
 
 imports_raw %>% overview_plot(month)
 ```
+
 ## global geographical map
 
 ```{r}
@@ -155,32 +156,63 @@ agg_data <- imports_raw %>%
       Transport_Insurance_Cost = Total_Imports_cif - Total_Imports_vfd,
     )
 
-world_map <- map_data("world")
-world_map$iso3 <- countrycode(world_map$region, origin = "country.name", 
-                              destination = "iso3c",
-                              custom_match = c(
-                                "Barbuda" = "ATG",           # Barbuda -> Antigua and Barbuda
-                                "Canary Islands" = "ESP",    # Canary Islands -> Spain
-                                "Kosovo" = "SRB",            # Kosovo -> Serbia
-                                "Siachen Glacier" = "PAK",   # Siachen Glacier -> Pakistan
-                                "Chagos Archipelago" = "SHN",# Chagos Archipelago -> Saint Helena
-                                "Virgin Islands" = "VGB",    # Virgin Islands -> British Virgin Islands
-                                "Ascension Island" = "ASC"   # Ascension Island -> Ascension
-                            ))
-# combine map data
-world_data <- world_map %>%
-  right_join(agg_data, by = c("iso3" = "iso3"))
-# na填充为0
-world_data[is.na(world_data)] <- 0
-# 绘制地图热力图
-ggplot(world_data) +
-  geom_polygon(aes(x = long, y = lat, group = group, fill = Total_Imports_vfd/1e9)) +
-  scale_fill_viridis_c() +
-  labs(title = "Total Imports VFD by Country",
-       fill = "Total Imports VFD ($NZD billion)") +
-  theme_void()
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Imports_vfd,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Imports VFD by Country($NZD billion)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Imports_cif,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Imports CIF by Country($NZD billion)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Total_Imports_qty,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Imports qty by Country($NZD billion)")
+
+plot_geo(agg_data) %>%
+  add_trace(
+    z = ~Transport_Insurance_Cost,
+    locations = ~iso3,
+    colorscale = "Viridis"
+  ) %>%
+  layout(title = "Total Imports Transport Insurance Cost by Country($NZD billion)")
 ```
 
+The import values from Australia, China, and the United States are much higher than those from other countries.
+
+## Import Flow
+
+```{r}
+imports_raw %>%
+  group_by(hs2_group, continent) %>%
+  summarise(value = sum(imports_nzd_vfd, na.rm = TRUE)) %>%
+  plot_ly(
+    type = "sankey",
+    orientation = "h",
+    node = list(
+      label = c(unique(imports_raw$hs2_group), unique(imports_raw$continent))
+    ),
+    link = list(
+      source = as.numeric(factor(.$hs2_group)) - 1,
+      target = as.numeric(factor(.$continent)) - 1 + length(unique(imports_raw$hs2_group)),
+      value = .$value
+    )
+  ) %>%
+  layout(title = "Imports Flow: HS Chapters to Continent")
+```
+
+Although China is the largest importer, from a continental perspective, the import volume of the Americas is much higher than that of Asia.
 
 ### group_by continent
 
@@ -288,6 +320,22 @@ unitgroup %>% pie_plot(continent)
 
 ### group_by hs2_group
 
+
+```{r}
+library(ggridges)
+# 分产品类别的价格分布
+imports_raw %>%
+  mutate(unit_price = imports_nzd_vfd / imports_qty) %>%
+  filter(unit_price > 0, unit_price < quantile(unit_price, 0.99, na.rm=T)) %>%
+  ggplot(aes(x = log10(unit_price), y = factor(hs2_group), fill = ..x..)) +
+  geom_density_ridges_gradient(scale = 3) +
+  scale_fill_viridis_c() +
+  labs(title = "Price Distribution by Product Category",
+       x = "Log10(Unit Price)",
+       y = "HS2 Category")
+```
+
+
 ```{r}
 imports_raw %>% plotv2(show_group=hs2_group, month,hs2_group)
 ```
@@ -296,6 +344,24 @@ The overall trend is consistent, with an increase in costs as the sample size gr
 
 The amount for Group 16 (Machinery and electrical equipment (84-85)) and Group 17 (Vehicles, aircraft, vessels (86-89)) is much higher than other groups, but the quantity is not high. This indicates that these products are expensive, but in low quantities. These products are likely high-end items, such as airplanes, ships, and machinery, and their insurance costs are also high, which aligns with our expectations.
 
+### Continent-Product Double Clustering Heatmap
+
+```{r}
+library(ComplexHeatmap)
+matrix_data <- imports_raw %>%
+  group_by(continent, hs2_group) %>%
+  summarise(total = log10(sum(imports_nzd_vfd))) %>%
+  spread(hs2_group, total, fill=0) %>%
+  column_to_rownames("continent")
+
+Heatmap(matrix_data, 
+        name = "log10(Export Value)",
+        col = viridisLite::viridis(100),
+        row_km = 4,  # 国家聚类
+        column_km = 4)  # 产品聚类
+```
+
+Except for Oceania and Americas, whose import structures are relatively similar, it can be seen that the import structures from different countries vary significantly.
 
 ### group_by hs2
 
