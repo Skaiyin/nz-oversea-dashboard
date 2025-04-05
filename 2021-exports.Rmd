@@ -84,6 +84,8 @@ exports_raw %>% overview_plot(month)
 ```
 Most of them are exported directly, and a small part is re-exported, but the unit price of re-export is relatively high.
 
+易于比较，需要聚焦到一个小的部分
+
 ## global geographical map
 
 ```{r}
@@ -107,13 +109,6 @@ plot_geo(agg_data) %>%
   ) %>%
   layout(title = "Total Only Exports fob ($NZD)")
 
-plot_geo(agg_data) %>%
-  add_trace(
-    z = ~Total_Only_Exports_qty,
-    locations = ~iso3,
-    colorscale = "Viridis"
-  ) %>%
-  layout(title = "Total Only Exports qty")
 
 plot_geo(agg_data) %>%
   add_trace(
@@ -123,13 +118,6 @@ plot_geo(agg_data) %>%
   ) %>%
   layout(title = "Total Reexport fob ($NZD)")
 
-plot_geo(agg_data) %>%
-  add_trace(
-    z = ~Total_Reexports_qty,
-    locations = ~iso3,
-    colorscale = "Viridis"
-  ) %>%
-  layout(title = "Total Reexport qty")
 
 plot_geo(agg_data) %>%
   add_trace(
@@ -138,40 +126,11 @@ plot_geo(agg_data) %>%
     colorscale = "Viridis"
   ) %>%
   layout(title = "Total Exports fob ($NZD)")
-
-plot_geo(agg_data) %>%
-  add_trace(
-    z = ~Total_Exports_qty,
-    locations = ~iso3,
-    colorscale = "Viridis"
-  ) %>%
-  layout(title = "Total Exports qty")
 ```
+
+qty 不能比较，需要同类型的 ，literture review，-> concrete
 
 For re-export, it is mainly Australia and USA, and for direct export, it is mainly China, Australia and USA.
-
-## Export Flow in continent
-
-```{r}
-exports_raw %>%
-  group_by(hs2_group, continent) %>%
-  summarise(value = sum(total_exports_nzd_fob, na.rm = T)) %>%
-  plot_ly(
-    type = "sankey",
-    orientation = "h",
-    node = list(
-      label = c(unique(exports_raw$hs2_group), unique(exports_raw$continent))
-    ),
-    link = list(
-      source = as.numeric(factor(.$hs2_group)) - 1,
-      target = as.numeric(factor(.$continent)) - 1 + length(unique(exports_raw$hs2_group)),
-      value = .$value
-    )
-  ) %>%
-  layout(title = "Export Flow: HS Chapters to Continent")
-```
-
-Although China is the largest exporter as a single country, at the continental level, Europe accounts for the largest export share, while Asia has a relatively small market share. Surprisingly, ships bunkering and passengers effects also account for a large proportion of New Zealand's exports. Since New Zealand is an island country with high international shipping demand, ship bunker exports are part of its market to a certain extent. In addition, as a popular tourist destination, the recovery of New Zealand's tourism industry has also driven the export of passenger-related goods (such as duty-free goods, luggage, etc.), which makes the proportion of these two items less surprising.
 
 ## group_by_continent
 
@@ -313,20 +272,42 @@ unitgroup %>% pie_plot(continent)
 
 ```
 
+top n contries,
 The FOB curve for Antarctica seems strange, with significant fluctuations, possibly due to its unique geographic location.
 
 ```{r}
 library(treemapify)
-tree_map <- exports_raw %>%
-  group_by(hs2_group, hs4) %>%
-  summarise(total = sum(total_exports_nzd_fob)) %>%
-  ggplot(aes(area = total, fill = hs2_group, 
-           label = hs4, subgroup = hs2_group)) +
-  geom_treemap() +
-  geom_treemap_subgroup_border() +
-  geom_treemap_text(colour = "white") +
-  scale_fill_viridis_d()
-print(tree_map)
+library(highcharter)
+# tree_map <- exports_raw %>%
+#   group_by(hs2_group, hs2) %>%
+#   summarise(total = sum(total_exports_nzd_fob)) %>%
+#   ggplot(aes(area = total, fill = hs2_group,
+#            label = hs2, subgroup = hs2_group)) +
+#   geom_treemap() +
+#   geom_treemap_subgroup_border() +
+#   geom_treemap_text(colour = "white") +
+#   scale_fill_viridis_d()
+# print(tree_map)
+# data_to_hierarchical(
+#   exports_raw,
+#   group_vars = c("hs2_group", "hs2"),
+#   size_var = "total_exports_nzd_fob",
+# )
+# exports_raw %>%
+#   group_by(hs2_group, hs2) %>%
+#   summarise(total = sum(total_exports_nzd_fob)) %>%
+#   plot_ly(
+#       type = "treemap",
+#       labels = ~hs4,
+#       parents = ~hs2_group,
+#       values = ~total
+#       # branchvalues = "total",
+#       # hovertemplate = '<b>%{label}</b><br>价值: $%{value:,.2f}<br>章节: %{parent}<extra></extra>'
+#     ) %>%
+#       layout(
+#         title = "出口商品结构",
+#         margin = list(l = 0, r = 0, b = 0, t = 50)
+#       )
 # ggplotly(tree_map,tooltip = c("label", "area"))
 ```
 
@@ -371,19 +352,6 @@ ggplot(country_stats, aes(x=log10(total_value), y=log10(avg_price),
 ```
 
 ## group_by hs2_group
-
-```{r}
-library(ggridges)
-exports_raw %>%
-  mutate(unit_price = total_exports_nzd_fob/total_exports_qty) %>%
-  filter(unit_price > 0, unit_price < quantile(unit_price, 0.99, na.rm=T)) %>%
-  ggplot(aes(x = log10(unit_price), y = factor(hs2_group), fill = ..x..)) +
-  geom_density_ridges_gradient(scale = 3) +
-  scale_fill_viridis_c() +
-  labs(title = "Price Distribution by Product Category",
-       x = "Log10(Unit Price)",
-       y = "HS2 Category")
-```
 
 
 ```{r}

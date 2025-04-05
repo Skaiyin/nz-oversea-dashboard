@@ -11,12 +11,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Read Data
 
 ```{r}
-# library(tidyverse)
-# library(lubridate)
-# library(ggplot2)
-# library(plotly)
-# library(tidyr)
-# library(countrycode)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(plotly)
+library(tidyr)
+library(countrycode)
 # # 自定义列名清洗函数（仅做合法化处理，保留原始语义）
 # clean_column_names <- function(df) {
 #   colnames(df) <- gsub("\\.+", "_", colnames(df))  # 将所有连续的点号替换为下划线
@@ -141,6 +141,8 @@ overview_plot <- function(data, ...){
 imports_raw %>% overview_plot(month)
 ```
 
+focus on vfd
+
 ## global geographical map
 
 ```{r}
@@ -190,29 +192,6 @@ plot_geo(agg_data) %>%
 ```
 
 The import values from Australia, China, and the United States are much higher than those from other countries.
-
-## Import Flow
-
-```{r}
-imports_raw %>%
-  group_by(hs2_group, continent) %>%
-  summarise(value = sum(imports_nzd_vfd, na.rm = TRUE)) %>%
-  plot_ly(
-    type = "sankey",
-    orientation = "h",
-    node = list(
-      label = c(unique(imports_raw$hs2_group), unique(imports_raw$continent))
-    ),
-    link = list(
-      source = as.numeric(factor(.$hs2_group)) - 1,
-      target = as.numeric(factor(.$continent)) - 1 + length(unique(imports_raw$hs2_group)),
-      value = .$value
-    )
-  ) %>%
-  layout(title = "Imports Flow: HS Chapters to Continent")
-```
-
-Although China is the largest importer, from a continental perspective, the import volume of the Americas is much higher than that of Asia.
 
 ### group_by continent
 
@@ -364,6 +343,8 @@ Heatmap(matrix_data,
 Except for Oceania and Americas, whose import structures are relatively similar, it can be seen that the import structures from different countries vary significantly.
 
 ### group_by hs2
+
+top n
 
 ```{r}
 imports_raw %>% plotv2(show_group=hs2, month,hs2)
