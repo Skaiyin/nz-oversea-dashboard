@@ -37,22 +37,6 @@ monthly_imports_agg <- function(data, ...) {
     )
 }
 
-imports_overview_plot <- function(data, ...) {
-  agg_data <- data %>%
-    monthly_imports_agg(...)
-  
-  p <- ggplot(agg_data) +
-    # 绘制 VFD (以百万为单位)
-    geom_line(aes(x = display_period, y = Total_Imports_vfd / 1e6, color = "VFD"), linewidth = 1) +
-    # 绘制 CIF (以百万为单位)
-    geom_line(aes(x = display_period, y = Total_Imports_cif / 1e6, color = "CIF"), linewidth = 1) +
-    labs(title = "Monthly Imports ($NZD vfd, $NZD cif) and Transport/Insurance Costs", 
-         x = "Month", 
-         y = "Total Imports ($NZD, in millions)") +
-    theme_minimal() +
-    scale_color_manual(values = c("blue", "red"))
-}
-
 monthly_exports_agg <- function(data, ...) {
   data %>%
     group_by(...) %>%
@@ -247,10 +231,16 @@ ui <- dashboardPage(
               ),
               fluidRow(
                 column(12,
-                       box(title = "Import and export trends of currently selected HS code", status = "info", solidHeader = TRUE, width = 12,
-                           plotlyOutput("current_hs_trend")
-                       )
-                ),
+                       plotlyOutput("current_hs_trend")
+                      )
+              ),
+              fluidRow(
+                column(12,
+                       conditionalPanel(
+                         condition = "input.hscode_select != 'ALL'",
+                         plotlyOutput("lowest_level_quantity_viz")
+                        )
+                      )
               ),
               fluidRow(
                 column(12,
@@ -526,9 +516,9 @@ server <- function(input, output, session) {
   output$overview_plot <- renderPlotly({
     
     p <- data_reactive()$trade_balance_data %>% ggplot() +
-      geom_line(aes(x=display_period, y=Imports/1e6, color="Imports", group=1), linewidth=1) + 
-      geom_line(aes(x=display_period, y=Exports/1e6, color="Exports", group=1), linewidth=1) +
-      geom_line(aes(x=display_period, y=Balance/1e6, color="Balance", group=1), linewidth=1.2) +
+      geom_line(aes(x=display_period, y=Imports/1e6, color="Imports", group=1), linewidth=0.6) + 
+      geom_line(aes(x=display_period, y=Exports/1e6, color="Exports", group=1), linewidth=0.6) +
+      geom_line(aes(x=display_period, y=Balance/1e6, color="Balance", group=1), linewidth=0.7) +
       geom_label(
         data = data_reactive()$trade_balance_data %>% 
           filter(Balance == max(Balance) | Balance == min(Balance)),
@@ -604,7 +594,7 @@ server <- function(input, output, session) {
     
     p1 <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
                                  group = country, text=hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Value (million NZD)",
@@ -638,7 +628,7 @@ server <- function(input, output, session) {
     
     p2 <- ggplot(top10_data, aes(x = display_period, y = Percentage, color = country, 
                                  group = country,text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Share of Total (%)",
@@ -676,7 +666,7 @@ server <- function(input, output, session) {
     
     p1 <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
                                  group = country, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Value (million NZD)",
@@ -707,7 +697,7 @@ server <- function(input, output, session) {
     
     p2 <- ggplot(top10_data, aes(x = display_period, y = Percentage, color = country, 
                                  group = country,text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Share of Total (%)",
@@ -731,7 +721,7 @@ server <- function(input, output, session) {
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
-                        text = "For individual products, monthly aggregation is not suitable because some products may only be used in certain months. Please adjust the granularity to yearly.",
+                        text = str_wrap("For individual products, monthly aggregation is not suitable because some products may only be used in certain months. Please adjust the granularity to yearly.", width = 80),
                         showarrow = FALSE,
                         font = list(size = 14)
                       ),
@@ -794,7 +784,7 @@ server <- function(input, output, session) {
     # 创建金额图
     p1 <- ggplot(top10_data_value, aes(x = year, y = Value/1e6, color = harmonised_system_code, 
                                        group = harmonised_system_code, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Value (million NZD)",
@@ -806,7 +796,7 @@ server <- function(input, output, session) {
     # 创建比例图
     p2 <- ggplot(top10_data_percent, aes(x = year, y = Percentage, color = harmonised_system_code, 
                                          group = harmonised_system_code, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Share of Total (%)"
@@ -830,7 +820,7 @@ server <- function(input, output, session) {
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
-                        text = "For individual products, monthly aggregation is not suitable because some products may only be used in certain months. Please adjust the granularity to yearly.",
+                        text = str_wrap("For individual products, monthly aggregation is not suitable because some products may only be used in certain months. Please adjust the granularity to yearly.", width = 80),
                         showarrow = FALSE,
                         font = list(size = 14)
                       ),
@@ -891,7 +881,7 @@ server <- function(input, output, session) {
     # 创建金额图
     p1 <- ggplot(top10_data_value, aes(x = year, y = Value/1e6, color = harmonised_system_code, 
                                        group = harmonised_system_code, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Value (million NZD)",
@@ -903,7 +893,7 @@ server <- function(input, output, session) {
     # 创建比例图
     p2 <- ggplot(top10_data_percent, aes(x = year, y = Percentage, color = harmonised_system_code, 
                                          group = harmonised_system_code, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
         x = NULL, 
         y = "Share of Total (%)"
@@ -966,8 +956,8 @@ server <- function(input, output, session) {
     
     # 绘制图表
     p <- ggplot(yoy_growth, aes(x = date, y = yoy_growth_rate)) +
-      geom_line(color = "#1E88E5", linewidth = 1) +
-      geom_point(color = "#1E88E5", size = 2) +
+      geom_line(color = "#1E88E5", linewidth = 0.5) +
+      geom_point(color = "#1E88E5", size = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
       geom_text(
         data = subset(yoy_growth, abs(yoy_growth_rate) > 20 | yoy_growth_rate == max(yoy_growth_rate) | yoy_growth_rate == min(yoy_growth_rate)),
@@ -1007,8 +997,8 @@ server <- function(input, output, session) {
     
     # 绘制图表
     p <- ggplot(mom_growth, aes(x = month, y = mom_growth_rate)) +
-      geom_line(color = "#FFA000", linewidth = 1) +
-      geom_point(color = "#FFA000", size = 2) +
+      geom_line(color = "#FFA000", linewidth = 0.5) +
+      geom_point(color = "#FFA000", size = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
       geom_text(
         data = subset(mom_growth, abs(mom_growth_rate) > 10 | mom_growth_rate == max(mom_growth_rate) | mom_growth_rate == min(mom_growth_rate)),
@@ -1073,8 +1063,8 @@ server <- function(input, output, session) {
     
     # 绘制图表
     p <- ggplot(yoy_growth, aes(x = date, y = yoy_growth_rate)) +
-      geom_line(color = "#43A047", linewidth = 1) +
-      geom_point(color = "#43A047", size = 2) +
+      geom_line(color = "#43A047", linewidth = 0.5) +
+      geom_point(color = "#43A047", size = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
       geom_text(
         data = subset(yoy_growth, abs(yoy_growth_rate) > 20 | yoy_growth_rate == max(yoy_growth_rate) | yoy_growth_rate == min(yoy_growth_rate)),
@@ -1114,8 +1104,8 @@ server <- function(input, output, session) {
     
     # 绘制图表
     p <- ggplot(mom_growth, aes(x = month, y = mom_growth_rate)) +
-      geom_line(color = "#D81B60", linewidth = 1) +
-      geom_point(color = "#D81B60", size = 2) +
+      geom_line(color = "#D81B60", linewidth = 0.5) +
+      geom_point(color = "#D81B60", size = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
       geom_text(
         data = subset(mom_growth, abs(mom_growth_rate) > 10 | mom_growth_rate == max(mom_growth_rate) | mom_growth_rate == min(mom_growth_rate)),
@@ -1678,12 +1668,13 @@ server <- function(input, output, session) {
     
     # 合并数据
     combined_data <- bind_rows(import_data, export_data)
-    
+    title = paste("Import and Export Trend - ", get_analysis_title())
+    wrapped_title <- str_wrap(title, width = 70) 
     # 创建图表
     p <- ggplot(combined_data, aes(x = display_period, y = value/1e6, color = type, group = type)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
-        title = paste0(title, "- Import and export value"),
+        title = wrapped_title,
         x = NULL,
         y = "Amount (million NZD)",
         color = "Type"
@@ -1731,13 +1722,13 @@ server <- function(input, output, session) {
       ))
     
     title <- paste("Top 10 Importing Countries -", get_analysis_title(), get_time_title(), collapse = ", ")
-    
+    wrapped_title <- str_wrap(title, width = 70) 
     # Create line chart
     p <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
                                 group = country, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
-        title = title,
+        title = wrapped_title,
         x = NULL, 
         y = "Value (million NZD)",
         color = "Country"
@@ -1748,44 +1739,6 @@ server <- function(input, output, session) {
     
     ggplotly(p, tooltip = 'text')
   })
-  
-  # Modified code for current_hs_top10_export_countries
-  # output$current_hs_top10_export_countries <- renderPlotly({
-  #   # Get filtered data
-  #   filtered_data <- filtered_hs_reactive()
-  #   
-  #   # Get top 10 exporting countries
-  #   top10_countries <- filtered_data$exports %>%
-  #     group_by(country) %>%
-  #     summarise(total_export = sum(total_exports_nzd_fob, na.rm = TRUE)) %>%
-  #     arrange(desc(total_export)) %>%
-  #     slice_head(n = 10) %>%
-  #     pull(country)
-  #   
-  #   # Create time series data for these 10 countries
-  #   top10_data <- filtered_data$exports %>%
-  #     filter(country %in% top10_countries) %>%
-  #     group_by(display_period, country) %>%
-  #     summarise(Value = sum(total_exports_nzd_fob, na.rm = TRUE)) %>%
-  #     ungroup()
-  #   
-  #   title <- paste("Top 10 Exporting Countries -", get_analysis_title(), get_time_title(), collapse = ", ")
-  #   
-  #   # Create line chart
-  #   p <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, group = country)) +
-  #     geom_line(linewidth = 1) +
-  #     labs(
-  #       title = title,
-  #       x = NULL, 
-  #       y = "Value (million NZD)",
-  #       color = "Country"
-  #     ) +
-  #     theme_minimal() +
-  #     theme(legend.position = "right",
-  #           axis.text.x = element_text(angle = 30, hjust = 1))
-  #   
-  #   ggplotly(p)
-  # })
   
   # Modified code for current_hs_top10_export_countries
   output$current_hs_top10_export_countries <- renderPlotly({
@@ -1813,13 +1766,13 @@ server <- function(input, output, session) {
       ))
     
     title <- paste("Top 10 Exporting Countries -", get_analysis_title(), get_time_title(), collapse = ", ")
-    
+    wrapped_title <- str_wrap(title, width = 70)
     # Create line chart
     p <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
                                 group = country, text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
-        title = title,
+        title = wrapped_title,
         x = NULL, 
         y = "Value (million NZD)",
         color = "Country"
@@ -1991,6 +1944,7 @@ server <- function(input, output, session) {
       ungroup()
     
     title = paste("SubLevel (", next_level$level, ") Import trend - ", get_analysis_title(), collapse = ", ")
+    wrapped_title <- str_wrap(title, width = 70)
     if (input$hs2_group_select == "ALL") {
       hs2_map <- hs2_map %>%
         mutate(HS_codes = as.factor(HS_codes))
@@ -2027,9 +1981,9 @@ server <- function(input, output, session) {
                               color = !!sym(next_level$level), group = !!sym(next_level$level),
                               text = hover_text,
                               )) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
-        title = title,
+        title = wrapped_title,
         x = NULL,
         y = "Import value VFD (million NZD)",
         color = next_level$level
@@ -2214,13 +2168,14 @@ server <- function(input, output, session) {
         )
     }
     title = paste("SubLevel (", next_level$level, ") Export trend - ", get_analysis_title(), collapse = ", ")
+    wrapped_title <- str_wrap(title, width = 70)
     # 创建图表
     p <- ggplot(agg_data, aes(x = display_period, y = value/1e6, color = !!sym(next_level$level), 
                               group = !!sym(next_level$level),
                               text = hover_text)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.5) +
       labs(
-        title = title,
+        title = wrapped_title,
         x = NULL,
         y = "Export value (million NZD)",
         color = next_level$level
@@ -2441,7 +2396,10 @@ server <- function(input, output, session) {
           )
         )
     }
-    
+    wrapped_title <- str_wrap(paste("Exports:", get_analysis_title(), 
+                              next_level$level,
+                              "Trade Flows by Country -", get_time_title(),
+                              sep = " "), width = 70)
     sankey_data %>%
       plot_ly(
         type = "sankey",
@@ -2457,12 +2415,82 @@ server <- function(input, output, session) {
         )
       ) %>%
       layout(
-        title = paste("ports:", get_analysis_title(), 
-                      next_level$level,
-                      "Trade Flows by Country -", get_time_title(),
-                      sep = " ")
+        title = wrapped_title
         # font = list(size = 10)
       )
+  })
+  # Add quantity visualization at the lowest level
+  output$lowest_level_quantity_viz <- renderPlotly({
+    # Check if we're at the lowest level (hscode_select is not "ALL")
+    if(input$hscode_select == "ALL") {
+      return(plot_ly() %>% 
+               layout(title = "Please select a specific HS code to view quantity data",
+                      annotations = list(
+                        x = 0.5,
+                        y = 0.5,
+                        text = "This visualization shows quantity data for specific HS codes only",
+                        showarrow = FALSE,
+                        font = list(size = 14)
+                      ),
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)))
+    }
+    
+    # Get filtered data for the selected HS code
+    filtered_data <- build_hs_filter(data_reactive()$imports_data, data_reactive()$exports_data)
+    
+    # Prepare import data
+    imports_data <- filtered_data$imports %>%
+      group_by(display_period) %>%
+      summarise(
+        quantity = sum(imports_qty, na.rm = TRUE)
+      ) %>%
+      mutate(type = "Import")
+    
+    # Prepare export data
+    exports_data <- filtered_data$exports %>%
+      group_by(display_period) %>%
+      summarise(
+        quantity = sum(total_exports_qty, na.rm = TRUE)
+      ) %>%
+      mutate(type = "Export")
+    
+    # Combine data
+    combined_data <- bind_rows(imports_data, exports_data)
+    
+    # Create hover text
+    combined_data <- combined_data %>%
+      mutate(hover_text = paste0(
+        'Period: ', display_period,
+        '<br>Type: ', type,
+        '<br>Quantity: ', format(quantity, big.mark = ",")
+      ))
+    
+    # Get title with HS code description
+    hs_description <- hs_map %>%
+      filter(HS_codes == input$hscode_select) %>%
+      pull(HS_description)
+    
+    if(length(hs_description) == 0 || is.na(hs_description)) {
+      hs_description <- input$hscode_select
+    }
+    
+    title <- paste0("Quantity Trend for HS Code ", input$hscode_select, " - ", hs_description)
+    wrapped_title <- str_wrap(title, width = 70)
+    # Create the plot
+    p <- ggplot(combined_data, aes(x = display_period, y = quantity, color = type, group = type, text = hover_text)) +
+      geom_line(linewidth = 0.5) +
+      geom_point(size = 2) +
+      labs(
+        title = wrapped_title,
+        x = NULL, 
+        y = "Quantity",
+        color = "Type"
+      ) +
+      theme_minimal() +
+      theme(legend.position = "bottom", axis.text.x = element_text(angle = 30, hjust = 1))
+    
+    ggplotly(p, tooltip = "text")
   })
   
   # 第三个 tab 是说明书
