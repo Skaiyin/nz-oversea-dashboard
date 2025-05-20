@@ -7,6 +7,8 @@ library(tidyverse)
 library(plotly)
 library(treemapify)
 
+shinyOptions(cache = cachem::cache_disk("./shiny_cache"))
+
 imports_raw <- readRDS("./all_years_imports.rds")
 exports_raw <- readRDS("./all_years_exports.rds")
 hs_map <- readRDS("./hs_code_map.rds")
@@ -73,20 +75,8 @@ exports_overview_plot <- function(data, ...){
 }
 
 
-# # 数据准备
-# geo_data <- bind_rows(
-#   imports_raw %>% 
-#     group_by(iso3) %>%
-#     summarise(Value = sum(imports_nzd_cif)) %>%
-#     mutate(Type = "Import"),
-#   exports_raw %>%
-#     group_by(iso3) %>% 
-#     summarise(Value = sum(total_exports_nzd_fob)) %>%
-#     mutate(Type = "Export")
-# )
-
-all_years <- unique(imports_raw$year)
-default_year <- all_years[1]
+all_years <- 2000:2024
+default_year <- 2000
 
 # UI部分
 ui <- dashboardPage(
@@ -186,200 +176,190 @@ ui <- dashboardPage(
               fluidRow(
                 box(title = "Product category selection", status = "primary", solidHeader = TRUE, width = 12,
                     fluidRow(
-                      column(3,
-                             selectInput("hs2_group_select", "HS2 group:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
+                      column(4, uiOutput("hs2_group_ui")),  # 使用uiOutput
+                      conditionalPanel(
+                        condition = "input.hs2_group_select != 'ALL'",
+                        column(4, uiOutput("hs2_ui"))  
                       ),
-                      column(3,
-                             selectInput("hs2_select", "HS2 code:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
-                      ),
-                      column(3,
-                             selectInput("hs4_select", "HS4 code:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
-                      ),
-                      column(3,
-                             selectInput("hs6_select", "HS6 code:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
-                      ),
-                      column(4,
-                             selectInput("hscode_select", "Full HS Code:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
-                      ),
-                      # column(4,
-                      #        div(
-                      #          textInput("hscode_input", "Directly enter HS Code:", ""),
-                      #          actionButton("search_hscode", "Query", icon = icon("search"), 
-                      #                       style = "margin-top: 5px; width: 100%;")
-                      #        )
-                      # )
+                      conditionalPanel(
+                        condition = "input.hs2_group_select != 'ALL' && input.hs2_select != 'ALL'",
+                        column(4, uiOutput("hs4_ui"))  
+                      )
                     ),
                     fluidRow(
-                      column(12,
-                             selectInput("country_select", "Country:", 
-                                         choices = c("ALL"), 
-                                         selected = "ALL")
+                      conditionalPanel(
+                        condition = "input.hs2_group_select != 'ALL' && input.hs2_select != 'ALL' && input.hs4_select != 'ALL'",
+                        column(4, uiOutput("hs6_ui")),  
                       ),
+                      conditionalPanel(
+                        condition = "input.hs2_group_select != 'ALL' && input.hs2_select != 'ALL' && input.hs4_select != 'ALL' && input.hs6_select != 'ALL'",
+                        column(4, uiOutput("hscode_ui")), 
+                      ),
+                    ),
+                    fluidRow(
+                      column(12, uiOutput("country_ui")), 
                     )
-                  ),
-                  
+                ),
               ),
               fluidRow(
-                column(12,
-                       plotlyOutput("current_hs_trend")
-                      )
-              ),
-              fluidRow(
-                column(12,
-                       conditionalPanel(
-                         condition = "input.hscode_select != 'ALL'",
-                         plotlyOutput("lowest_level_quantity_viz")
-                        )
-                      )
-              ),
-              fluidRow(
-                column(12,
-                       box(status = "primary", solidHeader = TRUE, width = 12,
-                           tabsetPanel(
-                             # 进口标签页
-                             tabPanel("Import", 
-                                      fluidRow(
-                                        column(12,
-                                                plotlyOutput("current_hs_top10_import_countries")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               DT::dataTableOutput("sublevel_import_table")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("sublevel_import_trend")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("hs_subcategory_countries_import_sankey", height = 500)
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("continent_import_sankey", height = 500)
-                                        )
-                                      ),
-                                      # fluidRow(
-                                      #   column(12,
-                                      #          plotOutput("import_treemap", height = 500)
-                                      #   )
-                                      # )
-                             ),
-                             
-                             # 出口标签页
-                             tabPanel("Export",
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("current_hs_top10_export_countries")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                                DT::dataTableOutput("sublevel_export_table")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("sublevel_export_trend")
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("hs_subcategory_countries_export_sankey", height = 500)
-                                        )
-                                      ),
-                                      fluidRow(
-                                        column(12,
-                                               plotlyOutput("continent_export_sankey", height = 500)
-                                        )
-                                      ),
-                                      # fluidRow(
-                                      #   column(12,
-                                      #          plotOutput("export_treemap", height = 500)
-                                      #   )
-                                      # )
-                             )
-                           )
-                       )
+                box(status = "primary", solidHeader = TRUE, width = 12,
+                      plotlyOutput("current_hs_trend")
                 )
               ),
               fluidRow(
-                box(title = "Import and export comparison", status = "primary", solidHeader = TRUE, width = 12,
-                    plotlyOutput("import_export_comparison")
-                ),
+                 conditionalPanel(
+                   condition = "input.hscode_select != 'ALL' && input.hscode_select",
+                   box(status = "primary", solidHeader = TRUE, width = 12,
+                    plotlyOutput("lowest_level_quantity_viz")
+                   )
+                  )
+              ),
+              fluidRow(
+                 box(status = "primary", solidHeader = TRUE, width = 12,
+                     tabsetPanel(
+                       # 进口标签页
+                       tabPanel("Import", 
+                                fluidRow(
+                                  column(12,
+                                          plotlyOutput("current_hs_top10_import_countries")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         DT::dataTableOutput("sublevel_import_table")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("sublevel_import_trend")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("hs_subcategory_countries_import_sankey", height = 500)
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("continent_import_sankey", height = 500)
+                                  )
+                                ),
+                                # fluidRow(
+                                #   column(12,
+                                #          plotOutput("import_treemap", height = 500)
+                                #   )
+                                # )
+                       ),
+                       
+                       # 出口标签页
+                       tabPanel("Export",
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("current_hs_top10_export_countries")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                          DT::dataTableOutput("sublevel_export_table")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("sublevel_export_trend")
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("hs_subcategory_countries_export_sankey", height = 500)
+                                  )
+                                ),
+                                fluidRow(
+                                  column(12,
+                                         plotlyOutput("continent_export_sankey", height = 500)
+                                  )
+                                ),
+                                # fluidRow(
+                                #   column(12,
+                                #          plotOutput("export_treemap", height = 500)
+                                #   )
+                                # )
+                       )
+                     )
+                 )
+              ),
+              fluidRow(
+                box(status = "primary", solidHeader = TRUE, width = 12,
+                  plotlyOutput("import_export_comparison")
+                )
               ),
       ),
-      
       
       # 设置 Tab
       tabItem(tabName = "tab_settings",
               fluidRow(
-                box(title = "仪表盘说明", status = "primary", solidHeader = TRUE, width = 12,
-                    h3("新西兰海外贸易仪表盘使用说明"),
-                    p("本仪表盘提供了新西兰进出口贸易数据的可视化分析工具，通过多维度的图表展示贸易流向、结构和趋势。"),
+                box(title = "Dashboard Guide", status = "primary", solidHeader = TRUE, width = 12,
+                    h3("New Zealand Overseas Trade Dashboard User Guide"),
+                    p("This dashboard provides visualization and analysis tools for New Zealand's import and export trade data, displaying trade flows, structure, and trends through multi-dimensional charts."),
                     
-                    h4("1. 概览页面 (Overview)"),
+                    h4("1. Overview Page"),
                     tags$ul(
-                      tags$li(strong("时间和显示粒度选择"), " - 可以选择查看全部时间、特定年份或自定义时间范围的数据，并可设置按年或按月显示。"),
-                      tags$li(strong("进出口概览"), " - 显示进口额、出口额及贸易平衡的整体趋势。蓝色区域表示出口，红色区域表示进口，黑线表示贸易平衡。"),
-                      tags$li(strong("进口概览"), " - 展示每月进口金额 (VFD和CIF) 以及运输保险成本的变化趋势。"),
-                      tags$li(strong("出口概览"), " - 展示每月出口金额 (FOB) 的变化趋势，区分为国内产品出口和再出口。"),
-                      tags$li(strong("地理分布"), " - 通过世界地图展示进出口的地理分布情况，颜色深浅表示贸易额大小。"),
-                      tags$li(strong("前十国家贸易情况"), " - 展示与新西兰贸易额最大的十个国家的进口和出口趋势及占比变化。采用年份的聚合"),
-                      tags$li(strong("前十商品贸易情况"), " - 展示新西兰进出口额最大的十类商品的贸易趋势及占比变化。采用年份的聚合"),
-                      tags$li(strong("进出口同比环比分析"), " - 通过同比增长率和环比增长率展示进出口贸易的短期和长期变化趋势。"),
-                      tags$li(strong("待做"), " - 一个拖拽的时间进度，查看地理的变化。")
+                      tags$li(strong("Time and Display Granularity Selection"), " - View data for all time, specific years, or custom time ranges, with options to display by year or by month."),
+                      tags$li(strong("Trade Flow Overview"), " - Shows overall trends in imports, exports, and trade balance. Blue line represents exports, red line represents imports, and the black line represents trade balance."),
+                      tags$li(strong("Geographic Distribution Maps"), " - Interactive world maps showing the geographic distribution of imports and exports, with color intensity indicating trade value."),
+                      tags$li(strong("Top Ten Trading Countries"), " - Two-panel charts showing import and export trends and proportion changes for New Zealand's ten largest trading partners over time."),
+                      tags$li(strong("Top Ten Commodity Trade"), " - Two-panel charts showing trade trends and proportion changes for New Zealand's ten largest import and export commodities."),
+                      tags$li(strong("Year-over-Year Growth Analysis"), " - Line charts displaying year-over-year growth rates for imports and exports, highlighting significant changes."),
+                      tags$li(strong("Month-over-Month Growth Analysis"), " - Line charts showing monthly sequential growth rates for imports and exports, with annotations for extreme values.")
                     ),
                     
-                    h4("2. 数据分析页面 (数据分析)"),
+                    h4("2. Data Analysis Page"),
                     tags$ul(
-                      tags$li(strong("商品分类选择"), " - 可通过HS码分类层级（HS2分组、HS2码、HS4码、HS6码、详细HSCode）筛选特定商品。"),
-                      tags$li(strong("当前选中HS码进出口走势"), " - 展示所选商品分类的进出口金额随时间的变化趋势。"),
-                      tags$li(strong("当前HS码前十交易国家"), " - 展示与所选商品分类有关的前十大贸易国家。"),
-                      tags$li(strong("下级分类趋势"), " - 分别展示所选商品分类下一级分类的进口和出口趋势，采用年份的聚合"),
-                      tags$li(strong("商品与大洲贸易流向"), " - 通过桑基图(Sankey)展示不同商品类别与不同大洲之间的贸易流向和规模。"),
-                      tags$li(strong("贸易结构树形图"), " - 通过矩形树图展示进出口贸易的分类结构，矩形面积表示贸易额大小。"),
-                      tags$li(strong("进出口比较"), " - 直观对比不同商品类别的进出口情况，横轴上方为出口，下方为进口。"),
-                      tags$li(strong("待做"), " - 自己输入的 hscode 的解析和选择。以及随着年份的增多是否需要调整坐标")
+                      tags$li(strong("Product Category Selection"), " - Hierarchical dropdown menus for filtering by HS code classifications (HS2 Group, HS2 Code, HS4 Code, HS6 Code, Detailed HS Code) and country."),
+                      tags$li(strong("Import-Export Trend Chart"), " - Line chart showing changes in import and export values over time for the selected product classification."),
+                      tags$li(strong("Quantity Visualization"), " - For specific HS codes, displays quantity trends for both imports and exports to complement value analysis."),
+                      tags$li(strong("Top Trading Countries Charts"), " - Line charts showing the top ten importing origins and exporting destinations for the selected product category."),
+                      tags$li(strong("Sub-Category Data Tables"), " - Interactive tables showing import and export values for sub-categories within the selected classification level."),
+                      tags$li(strong("Sub-Category Trend Charts"), " - Line charts displaying import and export trends for sub-categories of the selected product classification."),
+                      tags$li(strong("Trade Flow Sankey Diagrams"), " - Two sets of Sankey diagrams showing:"),
+                      tags$ul(
+                        tags$li("HS Category to Country flows - Visualizing trade between product categories and their top trading countries"),
+                        tags$li("Continent to HS Category flows - Showing how different continents contribute to each product category's trade")
+                      ),
+                      tags$li(strong("Import-Export Comparison Bar Chart"), " - Horizontal bar chart comparing import and export values across HS2 groups, with exports shown above the axis and imports below.")
                     ),
                     
-                    h4("数据指标说明"),
+                    h4("3. Data Indicators and Metrics"),
                     tags$ul(
-                      tags$li(strong("VFD (Value for Duty)"), " - 海关完税价格，不包括运费和保险费。"),
-                      tags$li(strong("CIF (Cost, Insurance, and Freight)"), " - 成本、保险费加运费价格，是进口商品的总成本。"),
-                      tags$li(strong("FOB (Free On Board)"), " - 离岸价格，指商品装船后的价格，不包括运费和保险费。"),
-                      tags$li(strong("运输保险成本"), " - CIF与VFD之间的差额，表示运输和保险的成本。"),
-                      tags$li(strong("同比增长率"), " - 与去年同期相比的增长百分比。"),
-                      tags$li(strong("环比增长率"), " - 与上一个月相比的增长百分比。")
+                      tags$li(strong("VFD (Value for Duty)"), " - Customs value for imported goods, excluding freight and insurance costs."),
+                      tags$li(strong("CIF (Cost, Insurance, and Freight)"), " - Total landed cost of imported goods, including the product cost, insurance, and freight."),
+                      tags$li(strong("FOB (Free On Board)"), " - Export value of goods loaded onto the vessel, excluding international shipping and insurance costs."),
+                      tags$li(strong("Transport and Insurance Cost"), " - The difference between CIF and VFD values, representing logistics and insurance expenses."),
+                      tags$li(strong("Year-over-Year Growth Rate"), " - Percentage change compared to the same period in the previous year, highlighting annual growth patterns."),
+                      tags$li(strong("Month-over-Month Growth Rate"), " - Percentage change compared to the previous month, showing short-term fluctuations and seasonal patterns."),
+                      tags$li(strong("Unit Values"), " - Per-unit cost calculations for both imports and exports, allowing for price trend analysis separate from volume changes.")
                     ),
                     
-                    h4("HS码分类系统"),
-                    p("本仪表盘使用协调系统编码(HS Code)对商品进行分类："),
+                    h4("4. Data Filtering Features"),
                     tags$ul(
-                      tags$li(strong("HS2分组"), " - 协调系统的大类别分组。"),
-                      tags$li(strong("HS2码"), " - 两位数编码，代表主要商品类别，如'01'表示活动物。"),
-                      tags$li(strong("HS4码"), " - 四位数编码，代表更细分的商品类别。"),
-                      tags$li(strong("HS6码"), " - 五位数编码，进一步细分商品类别。"),
-                      tags$li(strong("详细HSCode"), " - 最详细的商品分类编码，可精确到特定商品类型。")
+                      tags$li(strong("Time Range Filtering"), " - Options to view all available data, specific years, or custom date ranges."),
+                      tags$li(strong("Time Granularity"), " - Toggle between monthly and yearly data aggregation."),
+                      tags$li(strong("Product Hierarchy Filtering"), " - Cascading selections from broad product groups down to specific commodities."),
+                      tags$li(strong("Country Selection"), " - Filter data by specific trading partners."),
+                      tags$li(strong("Interactive Visualizations"), " - All charts include hover information for detailed data points and interactive legends.")
                     ),
                     
+                    h4("5. HS Code Classification System"),
+                    p("This dashboard uses the Harmonized System (HS) code to classify products:"),
+                    tags$ul(
+                      tags$li(strong("HS2 Group"), " - Major category groupings in the Harmonized System, representing broad industrial sectors."),
+                      tags$li(strong("HS2 Code"), " - Two-digit codes representing major product categories, such as '01' for live animals."),
+                      tags$li(strong("HS4 Code"), " - Four-digit codes representing more detailed product categories within each HS2 group."),
+                      tags$li(strong("HS6 Code"), " - Six-digit codes further detailing product categories, aligned with international standards."),
+                      tags$li(strong("Detailed HS Code"), " - The most detailed product classification code (beyond HS6), reflecting New Zealand-specific product categorizations.")
+                    ),
                     
-                    h4("HS2分组对照表"),
-                    p("以下是主要HS2分组及其代表的商品类别："),
+                    h4("HS2 Group Reference Table"),
+                    p("Below are the main HS2 groups and their corresponding product categories:"),
                     div(style = "max-height: 400px; overflow-y: auto;",
                         DT::dataTableOutput("hs2_group_table")
                     ),
@@ -393,6 +373,7 @@ ui <- dashboardPage(
 
 # 服务器部分
 server <- function(input, output, session) {
+  
   create_overview_subtitle <- function() {
     # 收集当前筛选条件
     filters <- c()
@@ -538,7 +519,12 @@ server <- function(input, output, session) {
       
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 第二部分是地理，加入单独的时间进度条，同步变化, 
   output$geo_imports <- renderPlotly({
@@ -552,7 +538,12 @@ server <- function(input, output, session) {
       layout(
         title = title
       )
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   output$geo_exports <- renderPlotly({
     title <- paste("Geographic Distribution of Exports - ",get_time_title())
@@ -565,9 +556,12 @@ server <- function(input, output, session) {
       layout(
         title = title
       )
-  })
-  
- 
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 第三部分是前十的国家，前十的商品，加入 hover 信息， 前十的商品
   # 准备前十进口国家数据
@@ -599,7 +593,7 @@ server <- function(input, output, session) {
         x = NULL, 
         y = "Value (million NZD)",
         color = "country",
-        title = "Top Ten Importing Countries"
+        title = "Top 10 Importing Origins"
       ) +
       theme_minimal() +
       theme(legend.position = "none") 
@@ -639,7 +633,12 @@ server <- function(input, output, session) {
     fig2 <- ggplotly(p2, tooltip = 'text')
     subplot(style(fig1, showlegend = F), fig2 ,nrows = 2, shareY = F, titleX = T, titleY=T, shareX = T) %>%
       layout(showlegend = TRUE,xaxis = list(tickangle = -30)) 
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   
   # 准备前十出口国家数据
@@ -702,18 +701,24 @@ server <- function(input, output, session) {
         x = NULL, 
         y = "Share of Total (%)",
         color = "Country",
-        title = "Top Ten Exporting Countries"
+        title = "Top Ten Exporting Destinations"
       ) +
       theme_minimal()
     
     fig2 <- ggplotly(p2, tooltip = 'text')
     subplot(style(fig1, showlegend = F), fig2 ,nrows = 2, shareY = F, titleX = T, titleY=T, shareX = T) %>%
       layout(showlegend = TRUE,xaxis = list(tickangle = -30)) 
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 前十进出口商品
   # 前十进口商品
   output$top10_import_commodities_combined <- renderPlotly({
+    req(input$time_period)
     if(input$time_period == "month") {
       # 返回一个提示信息的空白图表
       return(plot_ly() %>% 
@@ -810,7 +815,12 @@ server <- function(input, output, session) {
     # 创建子图并排列，使用共享的X轴
     subplot(style(fig1, showlegend = F), fig2 ,nrows = 2, shareY = F, titleX = T, titleY=T, shareX = T) %>%
       layout(showlegend = TRUE,xaxis = list(tickangle = -30))
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   output$top10_export_commodities_combined <- renderPlotly({
     if(input$time_period == "month") {
@@ -907,7 +917,12 @@ server <- function(input, output, session) {
     # 创建子图并排列，使用共享的X轴
     subplot(style(fig1, showlegend = F), fig2 ,nrows = 2, shareY = F, titleX = T, titleY=T, shareX = T) %>%
       layout(showlegend = TRUE,xaxis = list(tickangle = -30))
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 第四部分是同比，环比，加入 hover 信息
   # 计算进口同比增长率
@@ -916,11 +931,11 @@ server <- function(input, output, session) {
     if(input$time_range == "specific_year") {
       # 返回一个提示信息的空白图表
       return(plot_ly() %>% 
-               layout(title = "选择单一年份时无法计算同比增长率",
+               layout(title = "",
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
-                        text = "同比增长率需要至少两年的数据进行对比，请选择'全部时间'或'自定义范围'",
+                        text = str_wrap("The year-over-year growth rate needs to be compared with at least two years of data, please select 'All Time' or 'Custom Range'",80),
                         showarrow = FALSE,
                         font = list(size = 14)
                       ),
@@ -974,7 +989,12 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 计算进口环比增长率
   output$import_mom_growth <- renderPlotly({
@@ -1015,7 +1035,12 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 计算出口同比增长率
   output$export_yoy_growth <- renderPlotly({
@@ -1027,7 +1052,7 @@ server <- function(input, output, session) {
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
-                        text = "The year-over-year growth rate needs to be compared with at least two years of data, please select 'All Time' or 'Custom Range'",
+                        text = str_wrap("The year-over-year growth rate needs to be compared with at least two years of data, please select 'All Time' or 'Custom Range'",80),
                         showarrow = FALSE,
                         font = list(size = 14)
                       ),
@@ -1081,7 +1106,12 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   
   # 计算出口环比增长率
   output$export_mom_growth <- renderPlotly({
@@ -1122,8 +1152,268 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period
+  )
   # 第二个 tab 是商品分析，先整体的树形图可以选择hscode，按照0 2 4 5，按照时间分布的占进口的比例，有 sankey plot，地图展示, 前十国家的进出口和比例，
+  # 选择层级后，每年的钱，增长比例，占比，前十的贡献城市排名
+  output$hs2_group_ui <- renderUI({
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 合并进出口数据的HS2分组，获取所有可能值
+    hs2_groups <- sort(unique(c(
+      unique(imports_data$hs2_group),
+      unique(exports_data$hs2_group)
+    )))
+    # 过滤掉NA值
+    hs2_groups <- hs2_groups[!is.na(hs2_groups)]
+    
+    # 匹配描述
+    matched_codes <- hs2_map %>%
+      filter(HS_codes %in% hs2_groups) %>%
+      mutate(HS_codes = as.character(HS_codes))
+    
+    hs2_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
+    
+    # 创建选择器
+    selectInput("hs2_group_select", "HS2 group:", 
+                choices = c("ALL", hs2_choices),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range
+  )
+  
+  output$hs2_ui <- renderUI({
+    req(input$hs2_group_select)
+    # 如果HS2组是ALL，返回NULL（不显示）
+    if(input$hs2_group_select == "ALL") {
+      return(selectInput("hs2_select", "HS2 code:", 
+                         choices = c("ALL"),
+                         selected = "ALL"))
+    }
+    
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 筛选特定HS2组的HS2码
+    hs2_codes <- sort(unique(c(
+      imports_data %>% filter(hs2_group == input$hs2_group_select) %>% pull(hs2),
+      exports_data %>% filter(hs2_group == input$hs2_group_select) %>% pull(hs2)
+    )))
+    
+    # 过滤掉NA值
+    hs2_codes <- hs2_codes[!is.na(hs2_codes)]
+    
+    # 匹配描述
+    matched_codes <- hs_map %>%
+      filter(HS_codes %in% hs2_codes) %>%
+      mutate(HS_codes = as.character(HS_codes))
+    
+    hs2_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
+    
+    # 创建选择器
+    selectInput("hs2_select", "HS2 code:", 
+                choices = c("ALL", hs2_choices),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$hs2_group_select
+  )
+  
+  output$hs4_ui <- renderUI({
+    req(input$hs2_select, input$hs2_group_select)
+    # 如果HS2组或HS2是ALL，返回NULL（不显示）
+    if(input$hs2_group_select == "ALL" || input$hs2_select == "ALL") {
+      return(selectInput("hs4_select", "HS4 code:", 
+                         choices = c("ALL"),
+                         selected = "ALL"))
+    }
+    
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 应用HS2分组和HS2筛选
+    imports_filtered <- imports_data %>% 
+      filter(hs2_group == input$hs2_group_select, hs2 == input$hs2_select)
+    exports_filtered <- exports_data %>% 
+      filter(hs2_group == input$hs2_group_select, hs2 == input$hs2_select)
+    
+    # 获取HS4码
+    hs4_codes <- sort(unique(c(
+      unique(imports_filtered$hs4),
+      unique(exports_filtered$hs4)
+    )))
+    
+    # 过滤掉NA值
+    hs4_codes <- hs4_codes[!is.na(hs4_codes)]
+    
+    # 匹配描述
+    matched_codes <- hs_map %>%
+      filter(HS_codes %in% hs4_codes) %>%
+      mutate(HS_codes = as.character(HS_codes))
+    
+    hs4_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
+    
+    # 创建选择器
+    selectInput("hs4_select", "HS4 code:", 
+                choices = c("ALL", hs4_choices),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select,
+    input$hs2_select
+  )
+  
+  output$hs6_ui <- renderUI({
+    req(input$hs2_group_select)
+    if(input$hs2_group_select == "ALL" || input$hs2_select == "ALL" || input$hs4_select == "ALL") {
+      return (selectInput("hs6_select", "HS6 code:", 
+                          choices = c("ALL"),
+                          selected = "ALL"))
+    }
+    
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 应用所有上级筛选
+    imports_filtered <- imports_data %>% 
+      filter(hs2_group == input$hs2_group_select, 
+             hs2 == input$hs2_select,
+             hs4 == input$hs4_select)
+    exports_filtered <- exports_data %>% 
+      filter(hs2_group == input$hs2_group_select, 
+             hs2 == input$hs2_select,
+             hs4 == input$hs4_select)
+    
+    # 获取HS6码
+    hs6_codes <- sort(unique(c(
+      imports_filtered %>% pull(hs6),
+      exports_filtered %>% pull(hs6)
+    )))
+    
+    # 过滤掉NA值
+    hs6_codes <- hs6_codes[!is.na(hs6_codes)]
+    
+    # 创建一个包含所有HS6代码的数据框
+    all_codes_df <- data.frame(HS_codes = hs6_codes)
+    
+    # 与hs_map合并，保留所有hs6_codes中的代码
+    matched_codes <- all_codes_df %>%
+      left_join(hs_map, by = "HS_codes") %>%
+      mutate(HS_description = ifelse(is.na(HS_description), HS_codes, HS_description))
+    
+    # 创建选择列表
+    hs6_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
+    
+    # 创建选择器
+    selectInput("hs6_select", "HS6 code:", 
+                choices = c("ALL", hs6_choices),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$hs4_select
+  )
+  
+  # 5. HSCode选择器 - 内联get_hscode_choices函数
+  output$hscode_ui <- renderUI({
+    req(input$hs2_group_select)
+    # 如果上级有ANY是ALL，返回NULL（不显示）
+    if(input$hs2_group_select == "ALL" || input$hs2_select == "ALL" || 
+       input$hs4_select == "ALL" || input$hs6_select == "ALL") {
+      return(selectInput("hscode_select", "Full HS Code:", 
+                         choices = c("ALL"),selected = "ALL"))
+    }
+    
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 应用所有上级筛选
+    imports_filtered <- imports_data %>% 
+      filter(hs2_group == input$hs2_group_select, 
+             hs2 == input$hs2_select,
+             hs4 == input$hs4_select,
+             hs6 == input$hs6_select)
+    exports_filtered <- exports_data %>% 
+      filter(hs2_group == input$hs2_group_select, 
+             hs2 == input$hs2_select,
+             hs4 == input$hs4_select,
+             hs6 == input$hs6_select)
+    
+    # 获取HSCode
+    hscodes <- sort(unique(c(
+      imports_filtered %>% pull(harmonised_system_code),
+      exports_filtered %>% pull(harmonised_system_code)
+    )))
+    
+    # 过滤掉NA值
+    hscodes <- hscodes[!is.na(hscodes)]
+    
+    # 匹配描述
+    matched_codes <- hs_map %>%
+      filter(HS_codes %in% hscodes) %>%
+      mutate(HS_codes = as.character(HS_codes))
+    
+    hs_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
+    
+    # 创建选择器
+    selectInput("hscode_select", "Full HS Code:", 
+                choices = c("ALL", hs_choices),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$hs6_select
+  )
+  
+  # 6. 国家选择器 - 内联get_country_choices函数
+  output$country_ui <- renderUI({
+    # 获取筛选后的数据
+    imports_data <- data_reactive()$imports_data
+    exports_data <- data_reactive()$exports_data
+    
+    # 获取所有国家
+    countries <- sort(unique(c(
+      unique(imports_data$country),
+      unique(exports_data$country)
+    )))
+    
+    # 过滤掉NA值
+    countries <- countries[!is.na(countries)]
+    
+    # 创建选择器
+    selectInput("country_select", "Country:", 
+                choices = c("ALL", countries),
+                selected = "ALL")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range
+  )
+  
+  observeEvent(c(input$time_range, input$year_select_range, input$year_range), {
+    # 当时间范围变化时，重置HS2组选择（其他选择会因UI条件自动隐藏）
+    updateSelectInput(session, "hs2_group_select", selected = "ALL")
+  })
+  
   # sankey plot
   unique_hs2code <- sort(unique(c(imports_raw$hs2_group, exports_raw$hs2_group)))
   unique_continent <- sort(unique(c(imports_raw$continent, exports_raw$continent)))
@@ -1159,8 +1449,18 @@ server <- function(input, output, session) {
         )
       )%>%
         layout(title = "Imports Flow: HS Group to Continent")
-  })
-
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   # 准备出口桑基图数据
   output$continent_export_sankey <- renderPlotly({
@@ -1193,7 +1493,18 @@ server <- function(input, output, session) {
         )
       )%>%
       layout(title = "Exports Flow: HS Group to Continent")
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   # # 第二部分是树形框，展示比例，加入 hover 信息，
   # output$export_treemap <- renderPlot({
@@ -1234,336 +1545,116 @@ server <- function(input, output, session) {
         summarise(Value = sum(total_exports_nzd_fob)) %>%
         mutate(Type = "Export")
     ) 
+    hs_comparison <- hs_comparison %>%
+      mutate(hs2_group = as.character(hs2_group)) %>%
+      left_join(hs2_map %>% mutate(HS_codes = as.character(HS_codes)), 
+                by = c("hs2_group" = "HS_codes"))
+    hs_comparison <- hs_comparison %>%
+      mutate(
+        display_description = ifelse(!is.na(HS_description), 
+                                     paste0(hs2_group, ": ", truncate_text(HS_description, 30)), 
+                                     hs2_group),
+        hover_text = paste0(
+          "HS2 Group: ", display_description,
+          "<br>Type: ", Type,
+          "<br>Value: $", round(abs(Value)/1e9, 2), " billion"
+        )
+      )
+    sorted_hs2_groups <- hs_comparison %>%
+      distinct(hs2_group) %>%
+      mutate(sort_num = as.numeric(hs2_group)) %>%
+      arrange(sort_num) %>%
+      pull(hs2_group)
+    
+    max_value <- max(abs(hs_comparison$Value)) / 1e9 * 1.1  # 增加10%的边距
+    max_rounded <- ceiling(max_value / 5) * 5  # 向上取整到最接近的5的倍数
+    
+    # 动态生成刻度
+    breaks_value <- seq(-max_rounded, max_rounded, length.out = 11) 
     p1 <- ggplot(hs_comparison) +
       geom_bar(
         data = filter(hs_comparison, Type=="Import"),
-        aes(x=hs2_group, y=-Value/1e9, fill=Type), 
+        aes(x=hs2_group, y=-Value/1e9, fill=Type, text=hover_text), 
         stat="identity",
       ) +
       geom_bar(
         data = filter(hs_comparison, Type=="Export"),
-        aes(x=hs2_group, y=Value/1e9, fill = Type), 
+        aes(x=hs2_group, y=Value/1e9, fill = Type, text=hover_text), 
         stat="identity",
       ) +
       geom_hline(yintercept=0, color="#2D3047") +
       coord_flip() +
+      scale_x_discrete(limits = sorted_hs2_groups) +
       scale_y_continuous(
-        breaks = seq(-200, 300, 10),
+        limits = c(-max_rounded, max_rounded),
+        breaks = breaks_value,
         labels = function(x) abs(x)
       ) +
-      labs(title = "HS Code Trade Structure Comparison cif vs fob (billion)",
+      labs(title = "HS Code Trade Structure Comparison Imports vs Exports (billion)",
            y = "Value (billion NZD)",
            x = 'HS2 Group',)
-    ggplotly(p1)
-  })
+    ggplotly(p1, tooltip = "text")
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
 
   # TODO: x-axis 适应不同大小的数据
-  
-  # 选择层级后，每年的钱，增长比例，占比，前十的贡献城市排名
-  
-  # 初始化HS2分组选择框
-  observe({
-    # 合并进出口数据的HS2分组，获取所有可能值
-    hs2_groups <- sort(unique(c(
-      unique(data_reactive()$imports_data$hs2_group),
-      unique(data_reactive()$exports_data$hs2_group)
-    )))
-    # 过滤掉NA值
-    hs2_groups <- hs2_groups[!is.na(hs2_groups)]
-    
-    matched_codes <- hs2_map %>%
-      filter(HS_codes %in% hs2_groups)
-    hs2_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
-    
-    # 添加"全部"选项
-    hs2_groups <- c("ALL", hs2_choices)
-    
-    # 更新选择框
-    updateSelectInput(session, "hs2_group_select", 
-                      choices = hs2_groups,
-                      selected = "ALL")
-  })
-  
-  # 当HS2分组改变时，更新HS2选择框
-  observeEvent(input$hs2_group_select, {
-    # 如果选择了"全部"，则显示所有HS2码
-    if(input$hs2_group_select == "ALL") {
-      hs2_codes <- sort(unique(c(
-        unique(data_reactive()$imports_data$hs2),
-        unique(data_reactive()$exports_data$hs2)
-      )))
-    } else {
-      # 筛选当前分组下的HS2码
-      hs2_codes <- sort(unique(c(
-        data_reactive()$imports_data %>% 
-          filter(hs2_group == input$hs2_group_select) %>% 
-          pull(hs2),
-        data_reactive()$exports_data %>% 
-          filter(hs2_group == input$hs2_group_select) %>% 
-          pull(hs2)
-      )))
-    }
-    
-    # 过滤掉NA值
-    hs2_codes <- hs2_codes[!is.na(hs2_codes)]
-    matched_codes <- hs_map %>%
-      filter(HS_codes %in% hs2_codes)
-    
-    hs2_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
-    # 添加"全部"选项
-    hs2_codes <- c("ALL", hs2_choices)
-    
-    # 更新选择框
-    updateSelectInput(session, "hs2_select", 
-                      choices = hs2_codes,
-                      selected = "ALL")
-  })
-  
-  # 当HS2码改变时，更新HS4选择框
-  observeEvent(input$hs2_select, {
-    # 如果选择了"全部"并且HS2分组也是"全部"，则显示所有HS4码
-    if(input$hs2_select == "ALL" && input$hs2_group_select == "ALL") {
-      hs4_codes <- sort(unique(c(
-        unique(data_reactive()$imports_data$hs4),
-        unique(data_reactive()$exports_data$hs4)
-      )))
-    } else if(input$hs2_select == "ALL") {
-      # 如果只有HS2是"全部"，但HS2分组有选择，则筛选该分组下的所有HS4
-      hs4_codes <- sort(unique(c(
-        data_reactive()$imports_data %>% 
-          filter(hs2_group == input$hs2_group_select) %>% 
-          pull(hs4),
-        data_reactive()$exports_data %>% 
-          filter(hs2_group == input$hs2_group_select) %>% 
-          pull(hs4)
-      )))
-    } else {
-      # 筛选当前HS2码下的HS4码
-      hs4_codes <- sort(unique(c(
-        data_reactive()$imports_data %>% 
-          filter(hs2 == input$hs2_select) %>% 
-          pull(hs4),
-        data_reactive()$exports_data %>% 
-          filter(hs2 == input$hs2_select) %>% 
-          pull(hs4)
-      )))
-    }
-    
-    # 过滤掉NA值
-    hs4_codes <- hs4_codes[!is.na(hs4_codes)]
-    
-    matched_codes <- hs_map %>%
-      filter(HS_codes %in% hs4_codes)
-    hs4_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
-    
-    # 添加"全部"选项
-    hs4_codes <- c("ALL", hs4_choices)
-    
-    # 更新选择框
-    updateSelectInput(session, "hs4_select", 
-                      choices = hs4_codes,
-                      selected = "ALL")
-  })
-  
-  # 当HS4码改变时，更新HS6选择框
-  observeEvent(input$hs4_select, {
-    # 根据当前的选择链构建筛选条件
-    imports_filtered <- data_reactive()$imports_data
-    exports_filtered <- data_reactive()$exports_data
-    
-    # 应用HS2分组筛选
-    if(input$hs2_group_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs2_group == input$hs2_group_select)
-      exports_filtered <- exports_filtered %>% filter(hs2_group == input$hs2_group_select)
-    }
-    
-    # 应用HS2筛选
-    if(input$hs2_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs2 == input$hs2_select)
-      exports_filtered <- exports_filtered %>% filter(hs2 == input$hs2_select)
-    }
-    
-    # 应用HS4筛选
-    if(input$hs4_select != "ALL") {
-      hs6_codes <- sort(unique(c(
-        imports_filtered %>% filter(hs4 == input$hs4_select) %>% pull(hs6),
-        exports_filtered %>% filter(hs4 == input$hs4_select) %>% pull(hs6)
-      )))
-    } else {
-      # 如果HS4是"全部"，则显示所有符合前面筛选条件的HS6
-      hs6_codes <- sort(unique(c(
-        imports_filtered %>% pull(hs6),
-        exports_filtered %>% pull(hs6)
-      )))
-    }
-    
-    if(input$hs6_select != "ALL") {
-      hscodes <- sort(unique(c(
-        imports_filtered %>% filter(hs6 == input$hs6_select) %>% pull(hs6),
-        exports_filtered %>% filter(hs6 == input$hs6_select) %>% pull(hs6)
-      )))
-    } else {
-      # 如果HS6是"全部"，则显示所有符合前面筛选条件的HSCode
-      hscodes <- sort(unique(c(
-        imports_filtered %>% pull(hs6),
-        exports_filtered %>% pull(hs6)
-      )))
-    }
-    
-    # 过滤掉NA值
-    hs6_codes <- hs6_codes[!is.na(hs6_codes)]
-    
-    # 创建一个包含所有HS6代码的数据框
-    all_codes_df <- data.frame(HS_codes = hs6_codes)
-    
-    # 与hs_map合并，保留所有hs6_codes中的代码
-    matched_codes <- all_codes_df %>%
-      left_join(hs_map, by = "HS_codes")
-    
-    # 对于没有匹配到描述的代码，使用原始代码作为描述
-    matched_codes <- matched_codes %>%
-      mutate(HS_description = ifelse(is.na(HS_description), 
-                                     HS_codes, 
-                                     HS_description))
-    
-    # 创建选择列表
-    hs6_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
-    # 添加"全部"选项
-    hs6_codes <- c("ALL", hs6_choices)
-    
-    # 更新选择框
-    updateSelectInput(session, "hs6_select", 
-                      choices = hs6_codes,
-                      selected = "ALL")
-  })
-  
-  # 当HS6码改变时，更新HSCode选择框
-  observeEvent(input$hs6_select, {
-    # 根据当前的选择链构建筛选条件
-    imports_filtered <- data_reactive()$imports_data
-    exports_filtered <- data_reactive()$exports_data
-    
-    # 应用HS2分组筛选
-    if(input$hs2_group_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs2_group == input$hs2_group_select)
-      exports_filtered <- exports_filtered %>% filter(hs2_group == input$hs2_group_select)
-    }
-    
-    # 应用HS2筛选
-    if(input$hs2_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs2 == input$hs2_select)
-      exports_filtered <- exports_filtered %>% filter(hs2 == input$hs2_select)
-    }
-    
-    # 应用HS4筛选
-    if(input$hs4_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs4 == input$hs4_select)
-      exports_filtered <- exports_filtered %>% filter(hs4 == input$hs4_select)
-    }
-    
-    # 应用HS6筛选
-    if(input$hs6_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs6 == input$hs6_select)
-      exports_filtered <- exports_filtered %>% filter(hs6 == input$hs6_select)
-     
-    }
-    
-    if(input$hscode_select != "ALL") {
-      hscodes <- sort(unique(c(
-        imports_filtered %>% filter(harmonised_system_code == input$hscode_select) %>% pull(harmonised_system_code),
-        exports_filtered %>% filter(harmonised_system_code == input$hscode_select) %>% pull(harmonised_system_code)
-      )))
-    } else {
-      # 如果HS6是"全部"，则显示所有符合前面筛选条件的HSCode
-      hscodes <- sort(unique(c(
-        imports_filtered %>% pull(harmonised_system_code),
-        exports_filtered %>% pull(harmonised_system_code)
-      )))
-    }
-    # print(hscodes)
-    # 过滤掉NA值
-    hscodes <- hscodes[!is.na(hscodes)]
-    matched_codes <- hs_map %>%
-      filter(HS_codes %in% hscodes)
-    
-    hs_choices <- setNames(matched_codes$HS_codes, matched_codes$HS_description)
-    
-    # 添加"全部"选项
-    hscodes <- c("ALL", hs_choices)
-    
-    # 更新选择框
-    updateSelectInput(session, "hscode_select", 
-                      choices = hscodes,
-                      selected = "ALL")
-  })
-  
-  # 当国家选择变化时的响应
-  observeEvent(input$country_select, {
-    # 更新已筛选的数据
-    filtered_data <- reactive({
-      # 首先获取基于HS码筛选的数据
-      hs_filtered <- build_hs_filter(data_reactive()$imports_data, data_reactive()$exports_data)
-      
-      # 如果选择了特定国家（不是"ALL"）
-      if(input$country_select != "ALL") {
-        # 进一步按国家筛选进口数据
-        imports_filtered <- hs_filtered$imports %>% 
-          filter(country == input$country_select)
-        
-        # 进一步按国家筛选出口数据
-        exports_filtered <- hs_filtered$exports %>% 
-          filter(country == input$country_select)
-        
-        return(list(imports = imports_filtered, exports = exports_filtered))
-      } else {
-        # 如果选择了"ALL"，则返回仅按HS码筛选的数据
-        return(hs_filtered)
-      }
-    })
-    
-  })
-  
+ 
   # 创建一个函数来构建筛选条件
   build_hs_filter <- function(imports_data, exports_data) {
     # 初始化筛选条件
     imports_filtered <- imports_data
     exports_filtered <- exports_data
-    
     # 根据选择的HS2分组筛选
+    req(input$hs2_group_select, input$country_select)
     if(input$hs2_group_select != "ALL") {
       imports_filtered <- imports_filtered %>% filter(hs2_group == input$hs2_group_select)
       exports_filtered <- exports_filtered %>% filter(hs2_group == input$hs2_group_select)
     }
-    
-    # 根据选择的HS2码筛选
-    if(input$hs2_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs2 == input$hs2_select)
-      exports_filtered <- exports_filtered %>% filter(hs2 == input$hs2_select)
+    if(!is.null(input$hs2_select)){
+      if(input$hs2_select != "ALL") {
+        imports_filtered <- imports_filtered %>% filter(hs2 == input$hs2_select)
+        exports_filtered <- exports_filtered %>% filter(hs2 == input$hs2_select)
+      }
     }
-    
+
     # 根据选择的HS4码筛选
-    if(input$hs4_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs4 == input$hs4_select)
-      exports_filtered <- exports_filtered %>% filter(hs4 == input$hs4_select)
+    if(!is.null(input$hs4_select)){
+      if(input$hs4_select != "ALL") {
+        imports_filtered <- imports_filtered %>% filter(hs4 == input$hs4_select)
+        exports_filtered <- exports_filtered %>% filter(hs4 == input$hs4_select)
+      }
     }
     
-    # 根据选择的HS6码筛选
-    if(input$hs6_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(hs6 == input$hs6_select)
-      exports_filtered <- exports_filtered %>% filter(hs6 == input$hs6_select)
+    if(!is.null(input$hs6_select)){
+      if(input$hs6_select != "ALL") {
+        imports_filtered <- imports_filtered %>% filter(hs6 == input$hs6_select)
+        exports_filtered <- exports_filtered %>% filter(hs6 == input$hs6_select)
+      }
     }
     
     # 根据选择的HSCode筛选
-    if(input$hscode_select != "ALL") {
-      imports_filtered <- imports_filtered %>% filter(harmonised_system_code == input$hscode_select)
-      exports_filtered <- exports_filtered %>% filter(harmonised_system_code == input$hscode_select)
+    if(!is.null(input$hscode_select)){
+      if(input$hscode_select != "ALL") {
+        imports_filtered <- imports_filtered %>% filter(harmonised_system_code == input$hscode_select)
+        exports_filtered <- exports_filtered %>% filter(harmonised_system_code == input$hscode_select)
+      }
     }
-    
+
     if(input$country_select != "ALL") {
       imports_filtered <- imports_filtered %>% filter(country == input$country_select)
       exports_filtered <- exports_filtered %>% filter(country == input$country_select)
     }
-    
+
     return(list(imports = imports_filtered, exports = exports_filtered))
   }
   
@@ -1572,28 +1663,9 @@ server <- function(input, output, session) {
     build_hs_filter(data_reactive()$imports_data, data_reactive()$exports_data)
   })
   
-  observe({
-    # Get all unique continents from imports and exports data
-    countrys <- sort(unique(c(
-      unique(data_reactive()$imports_data$country),
-      unique(data_reactive()$exports_data$country)
-    )))
-    
-    # Filter out NA values
-    countrys <- countrys[!is.na(countrys)]
-    
-    # Add "ALL" option
-    countrys <- c("ALL", countrys)
-    
-    # Update select input
-    updateSelectInput(session, "country_select", 
-                      choices = countrys,
-                      selected = "ALL")
-  })
-  
   get_analysis_title <- function(){
     title_parts <- c()
-    if(input$hs2_group_select != "ALL") {
+    if(input$hs2_group_select != "ALL" && !is.null(input$hs2_group_select)) {
       description <- hs2_map %>%
         filter(HS_codes == input$hs2_group_select) %>%
         pull(HS_description)
@@ -1603,7 +1675,7 @@ server <- function(input, output, session) {
       title_parts <- c(paste0("HS2 group: ", description))
     }
     
-    if(input$hs2_select != "ALL") {
+    if(input$hs2_select != "ALL" && !is.null(input$hs2_select)) {
       description <- hs_map %>%
         filter(HS_codes == input$hs2_select) %>%
         pull(HS_description)
@@ -1613,7 +1685,7 @@ server <- function(input, output, session) {
       title_parts <- c(paste0("HS2: ", description))
     }
     
-    if(input$hs4_select != "ALL") {
+    if(input$hs4_select != "ALL" && !is.null(input$hs4_select)) {
       description <- hs_map %>%
         filter(HS_codes == input$hs4_select) %>%
         pull(HS_description)
@@ -1623,7 +1695,7 @@ server <- function(input, output, session) {
       title_parts <- c(paste0("HS4: ", description))
     }
     
-    if(input$hs6_select != "ALL") {
+    if(input$hs6_select != "ALL" && !is.null(input$hs6_select)) {
       description <- hs_map %>%
         filter(HS_codes == input$hs6_select) %>%
         pull(HS_description)
@@ -1633,7 +1705,7 @@ server <- function(input, output, session) {
       title_parts <- c(paste0("HS6: ", description))
     }
     
-    if(input$hscode_select != "ALL") {
+    if(input$hscode_select != "ALL" && !is.null(input$hscode_select)) {
       description <- hs_map %>%
         filter(HS_codes == input$hscode_select) %>%
         pull(HS_description)
@@ -1684,7 +1756,18 @@ server <- function(input, output, session) {
             axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p)
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   get_time_title <- function(){
     title_parts <- c()
@@ -1721,7 +1804,7 @@ server <- function(input, output, session) {
         "<br>Value: $", round(Value/1e6, 2), " million"
       ))
     
-    title <- paste("Top 10 Importing Countries -", get_analysis_title(), get_time_title(), collapse = ", ")
+    title <- paste("Top 10 Importing Origins -", get_analysis_title(), get_time_title(), collapse = ", ")
     wrapped_title <- str_wrap(title, width = 70) 
     # Create line chart
     p <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
@@ -1738,7 +1821,18 @@ server <- function(input, output, session) {
             axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p, tooltip = 'text')
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   # Modified code for current_hs_top10_export_countries
   output$current_hs_top10_export_countries <- renderPlotly({
@@ -1765,7 +1859,7 @@ server <- function(input, output, session) {
         "<br>Value: $", round(Value/1e6, 2), " million"
       ))
     
-    title <- paste("Top 10 Exporting Countries -", get_analysis_title(), get_time_title(), collapse = ", ")
+    title <- paste("Top 10 Exporting Destinations -", get_analysis_title(), get_time_title(), collapse = ", ")
     wrapped_title <- str_wrap(title, width = 70)
     # Create line chart
     p <- ggplot(top10_data, aes(x = display_period, y = Value/1e6, color = country, 
@@ -1782,18 +1876,31 @@ server <- function(input, output, session) {
             axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p, tooltip = 'text')
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
+  
   # 获取当前选择的下一级别
   get_next_level <- reactive({
-    if(input$hscode_select != "ALL") {
+    
+    if(input$hscode_select != "ALL" && !is.null(input$hscode_select)) {
       return(NULL)  # 已经是最底层，没有下一级
-    } else if(input$hs6_select != "ALL") {
+    } else if(input$hs6_select != "ALL" && !is.null(input$hs6_select)) {
       return(list(level = "harmonised_system_code", parent_level = "hs6", parent_value = input$hs6_select))
-    } else if(input$hs4_select != "ALL") {
+    } else if(input$hs4_select != "ALL" && !is.null(input$hs4_select)) {
       return(list(level = "hs6", parent_level = "hs4", parent_value = input$hs4_select))
-    } else if(input$hs2_select != "ALL") {
+    } else if(input$hs2_select != "ALL" && !is.null(input$hs2_select)) {
       return(list(level = "hs4", parent_level = "hs2", parent_value = input$hs2_select))
-    } else if(input$hs2_group_select != "ALL") {
+    } else if(input$hs2_group_select != "ALL" && !is.null(input$hs2_group_select)) {
       return(list(level = "hs2", parent_level = "hs2_group", parent_value = input$hs2_group_select))
     } else {
       return(list(level = "hs2_group", parent_level = NULL, parent_value = NULL))
@@ -1993,7 +2100,18 @@ server <- function(input, output, session) {
             axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p,tooltip="text")
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   output$sublevel_export_table <- DT::renderDataTable({
     # 获取下一级别
@@ -2099,6 +2217,7 @@ server <- function(input, output, session) {
     
     return(dt)
   })
+  
   # 下级分类出口走势
   output$sublevel_export_trend <- renderPlotly({
     # 获取下一级别
@@ -2184,7 +2303,18 @@ server <- function(input, output, session) {
       theme(legend.position = "bottom")
     
     ggplotly(p,tooltip='text')
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   # 实现进口桑基图
   output$hs_subcategory_countries_import_sankey <- renderPlotly({
@@ -2297,13 +2427,24 @@ server <- function(input, output, session) {
         )
       ) %>%
       layout(
-        title = paste("Imports:", get_analysis_title(), 
+        title = str_wrap(paste("Imports:", get_analysis_title(), 
                               next_level$level,
                               "Trade Flows by Country -", get_time_title(),
-                              sep = " ")
+                              sep = " "),60)
         # font = list(size = 10)
       )
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
   # 实现出口桑基图
   output$hs_subcategory_countries_export_sankey <- renderPlotly({
@@ -2418,11 +2559,24 @@ server <- function(input, output, session) {
         title = wrapped_title
         # font = list(size = 10)
       )
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
+  
   # Add quantity visualization at the lowest level
   output$lowest_level_quantity_viz <- renderPlotly({
     # Check if we're at the lowest level (hscode_select is not "ALL")
-    if(input$hscode_select == "ALL") {
+    
+    if(input$hscode_select == "ALL" || is.null(input$hscode_select)) {
       return(plot_ly() %>% 
                layout(title = "Please select a specific HS code to view quantity data",
                       annotations = list(
@@ -2480,7 +2634,6 @@ server <- function(input, output, session) {
     # Create the plot
     p <- ggplot(combined_data, aes(x = display_period, y = quantity, color = type, group = type, text = hover_text)) +
       geom_line(linewidth = 0.5) +
-      geom_point(size = 2) +
       labs(
         title = wrapped_title,
         x = NULL, 
@@ -2491,25 +2644,41 @@ server <- function(input, output, session) {
       theme(legend.position = "bottom", axis.text.x = element_text(angle = 30, hjust = 1))
     
     ggplotly(p, tooltip = "text")
-  })
+  }) %>% bindCache(
+    input$time_range, 
+    input$year_select_range,
+    input$year_range,
+    input$time_period,
+    input$hs2_group_select, 
+    input$hs2_select, 
+    input$hs4_select, 
+    input$hs6_select, 
+    input$hscode_select, 
+    input$country_select
+  )
   
-  # 第三个 tab 是说明书
+  # # 第三个 tab 是说明书
   output$hs2_group_table <- DT::renderDataTable({
     hs2_group_data <- data.frame(
-      编号 = 1:21,
-      分组代码 = c("01-05", "06-14", "15", "16-24", "25-27", "28-38", "39-40", "41-43", "44-46", "47-49", 
+      Code = c("01-05", "06-14", "15", "16-24", "25-27", "28-38", "39-40", "41-43", "44-46", "47-49", 
                "50-63", "64-67", "68-70", "71", "72-83", "84-85", "86-89", "90-92", "93", "94-96", "97-99"),
-      商品类别 = c("活动物及动物产品", "植物产品", "动植物油脂", "食品、饮料、烟草", "矿产品", "化工产品", 
-               "塑料和橡胶", "皮革及其制品", "木及木制品", "纸张、纸浆及纸制品", 
-               "纺织品及纺织制品", "鞋类、帽类等", "石材、陶瓷、玻璃", "珠宝、贵金属", "贱金属及其制品", 
-               "机械、电气设备", "运输设备", "精密仪器及设备", "武器和弹药", "杂项制品", "艺术品、收藏品")
+      Description = c("Live animals and animal products", "Vegetable products", "Animal or vegetable fats and oils", 
+                      "Prepared foodstuffs, beverages, tobacco", "Mineral products", "Chemical products", 
+                      "Plastics and rubber", "Raw hides, leather products", "Wood and articles of wood", 
+                      "Pulp of wood, paper and paperboard", "Textiles and textile articles", 
+                      "Footwear, headgear, umbrellas, etc.", "Stone, ceramic, glass articles", 
+                      "Precious stones and metals", "Base metals and articles of base metal", 
+                      "Machinery and electrical equipment", "Transportation equipment", 
+                      "Optical, precision instruments", "Arms and ammunition", 
+                      "Miscellaneous manufactured articles", "Works of art and antiques")
     )
     
     DT::datatable(hs2_group_data, 
                   options = list(
                     pageLength = 10,
                     lengthMenu = c(5, 10, 15, 20),
-                    dom = 'tp'
+                    dom = 'tp',
+                    searching = FALSE
                   ),
                   rownames = FALSE)
   })
