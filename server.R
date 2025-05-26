@@ -67,7 +67,7 @@ exports_overview_plot <- function(data, ...){
     geom_line(aes(x = display_period, y = Total_Only_Exports_nzd_fob / 1e6, color = "Only_Exports"),  size = 1) +
     geom_line(aes(x = display_period, y = Total_Reexports_nzd_fob / 1e6, color = "Reexports"), size = 1) +
     geom_line(aes(x = display_period, y = Total_Exports_nzd_fob / 1e6, color = "Exports"), size = 1) +
-    labs(title = "Monthly Imports fob($NZD)", 
+    labs(title = "Monthly Exports fob($NZD)", 
          x = "Month", 
          y = "Total Imports ($NZD, in millions)") +
     theme_minimal() +
@@ -306,8 +306,8 @@ ui <- dashboardPage(
                       tags$li(strong("Time and Display Granularity Selection"), " - View data for all time, specific years, or custom time ranges, with options to display by year or by month."),
                       tags$li(strong("Trade Flow Overview"), " - Shows overall trends in imports, exports, and trade balance. Blue line represents exports, red line represents imports, and the black line represents trade balance."),
                       tags$li(strong("Geographic Distribution Maps"), " - Interactive world maps showing the geographic distribution of imports and exports, with color intensity indicating trade value."),
-                      tags$li(strong("Top Ten Trading Countries"), " - Two-panel charts showing import and export trends and proportion changes for New Zealand's ten largest trading partners over time."),
-                      tags$li(strong("Top Ten Commodity Trade"), " - Two-panel charts showing trade trends and proportion changes for New Zealand's ten largest import and export commodities."),
+                      tags$li(strong("Top 10 Trading Countries"), " - Two-panel charts showing import and export trends and proportion changes for New Zealand's ten largest trading partners over time."),
+                      tags$li(strong("Top 10 Commodity Trade"), " - Two-panel charts showing trade trends and proportion changes for New Zealand's ten largest import and export commodities."),
                       tags$li(strong("Year-over-Year Growth Analysis"), " - Line charts displaying year-over-year growth rates for imports and exports, highlighting significant changes."),
                       tags$li(strong("Month-over-Month Growth Analysis"), " - Line charts showing monthly sequential growth rates for imports and exports, with annotations for extreme values.")
                     ),
@@ -500,16 +500,8 @@ server <- function(input, output, session) {
       geom_line(aes(x=display_period, y=Imports/1e6, color="Imports", group=1), linewidth=0.6) + 
       geom_line(aes(x=display_period, y=Exports/1e6, color="Exports", group=1), linewidth=0.6) +
       geom_line(aes(x=display_period, y=Balance/1e6, color="Balance", group=1), linewidth=0.7) +
-      geom_label(
-        data = data_reactive()$trade_balance_data %>% 
-          filter(Balance == max(Balance) | Balance == min(Balance)),
-        aes(x=display_period, y=Balance/1e6, 
-            label=paste(scales::dollar(Balance/1e6),"M")),
-        color="#FFFFFF", fill="#2D3047"
-      ) +
       scale_y_continuous(
         name = "Trade Value (Millions NZD)",
-        sec.axis = sec_axis(~.*1, name="Trade Balance (Millions $NZD)")
       ) +
       scale_color_manual(values = c("Imports" = "#FF6B6B", "Exports" = "#4ECDC4", "Balance" = "#2D3047"),
                          name = "Type of trade") +
@@ -528,7 +520,7 @@ server <- function(input, output, session) {
   
   # 第二部分是地理，加入单独的时间进度条，同步变化, 
   output$geo_imports <- renderPlotly({
-    title <- paste("Geographic Distribution of Imports - ",get_time_title())
+    title <- paste("Geographic Distribution of Import Origins - ",get_time_title())
     plot_geo(data_reactive()$geo_imports) %>%
       add_trace(
         z = ~Value,
@@ -546,7 +538,7 @@ server <- function(input, output, session) {
   )
   
   output$geo_exports <- renderPlotly({
-    title <- paste("Geographic Distribution of Exports - ",get_time_title())
+    title <- paste("Geographic Distribution of Export Destination - ",get_time_title())
     plot_geo(data_reactive()$geo_exports) %>%
       add_trace(
         z = ~Value,
@@ -701,7 +693,7 @@ server <- function(input, output, session) {
         x = NULL, 
         y = "Share of Total (%)",
         color = "Country",
-        title = "Top Ten Exporting Destinations"
+        title = "Top 10 Exporting Destinations"
       ) +
       theme_minimal()
     
@@ -722,7 +714,7 @@ server <- function(input, output, session) {
     if(input$time_period == "month") {
       # 返回一个提示信息的空白图表
       return(plot_ly() %>% 
-               layout(title = "Top Ten Import Commodities",
+               layout(title = "Top 10 Import Commodities",
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
@@ -793,7 +785,7 @@ server <- function(input, output, session) {
       labs(
         x = NULL, 
         y = "Value (million NZD)",
-        title = "Top Ten Import Commodities"
+        title = "Top 10 Import Commodities"
       ) +
       theme_minimal() +
       theme(legend.position = "none")  # 移除图例
@@ -826,7 +818,7 @@ server <- function(input, output, session) {
     if(input$time_period == "month") {
       # 返回一个提示信息的空白图表
       return(plot_ly() %>% 
-               layout(title = "Top Ten Export Commodities",
+               layout(title = "Top 10 Export Commodities",
                       annotations = list(
                         x = 0.5,
                         y = 0.5,
@@ -895,7 +887,7 @@ server <- function(input, output, session) {
       labs(
         x = NULL, 
         y = "Value (million NZD)",
-        title = "Top Ten Export Commodities"
+        title = "Top 10 Export Commodities"
       ) +
       theme_minimal() +
       theme(legend.position = "none")  # 移除图例
@@ -2050,7 +2042,7 @@ server <- function(input, output, session) {
       summarise(value = sum(imports_nzd_vfd, na.rm = TRUE)) %>%
       ungroup()
     
-    title = paste("SubLevel (", next_level$level, ") Import trend - ", get_analysis_title(), collapse = ", ")
+    title = paste(" Import trend - SubLevel (", next_level$level, ") of", get_analysis_title(), collapse = ", ")
     wrapped_title <- str_wrap(title, width = 70)
     if (input$hs2_group_select == "ALL") {
       hs2_map <- hs2_map %>%
@@ -2286,7 +2278,7 @@ server <- function(input, output, session) {
           )
         )
     }
-    title = paste("SubLevel (", next_level$level, ") Export trend - ", get_analysis_title(), collapse = ", ")
+    title = paste("Export trend - SubLevel (", next_level$level, ")  of", get_analysis_title(), collapse = ", ")
     wrapped_title <- str_wrap(title, width = 70)
     # 创建图表
     p <- ggplot(agg_data, aes(x = display_period, y = value/1e6, color = !!sym(next_level$level), 
@@ -2427,8 +2419,7 @@ server <- function(input, output, session) {
         )
       ) %>%
       layout(
-        title = str_wrap(paste("Imports:", get_analysis_title(), 
-                              next_level$level,
+        title = str_wrap(paste("Imports:", "Sublevel (",next_level$level, ") of ", get_analysis_title(), 
                               "Trade Flows by Country -", get_time_title(),
                               sep = " "),60)
         # font = list(size = 10)
@@ -2537,10 +2528,9 @@ server <- function(input, output, session) {
           )
         )
     }
-    wrapped_title <- str_wrap(paste("Exports:", get_analysis_title(), 
-                              next_level$level,
-                              "Trade Flows by Country -", get_time_title(),
-                              sep = " "), width = 70)
+    wrapped_title <- str_wrap(paste("Exports:", "Sublevel (",next_level$level, ") of ", get_analysis_title(), 
+                                    "Trade Flows by Country -", get_time_title(),
+                                    sep = " "), width = 70)
     sankey_data %>%
       plot_ly(
         type = "sankey",
