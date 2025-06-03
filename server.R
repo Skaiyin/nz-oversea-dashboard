@@ -1320,6 +1320,8 @@ server <- function(input, output, session) {
     input$time_range, 
     input$year_select_range,
     input$year_range,
+    input$hs2_group_select,  # 添加这个依赖
+    input$hs2_select,        # 添加这个依赖
     input$hs4_select
   )
   
@@ -1373,6 +1375,9 @@ server <- function(input, output, session) {
     input$time_range, 
     input$year_select_range,
     input$year_range,
+    input$hs2_group_select,  # 添加这个依赖
+    input$hs2_select,        # 添加这个依赖
+    input$hs4_select,
     input$hs6_select
   )
   
@@ -1740,7 +1745,7 @@ server <- function(input, output, session) {
       labs(
         title = wrapped_title,
         x = NULL,
-        y = "Amount (million NZD)",
+        y = "Trade Value (million NZD)",
         color = "Type"
       ) +
       theme_minimal() +
